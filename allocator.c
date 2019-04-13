@@ -64,7 +64,7 @@ void* xxmalloc(size_t size) {
   }
 
   /* Make shadow starting at MMAP_MIN_ADDR, and going up according to high_watermark */
-  void* shadow = mmap((void*)MMAP_MIN_ADDR+high_watermark, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE, data_fd, 0);
+  void* shadow = mmap((void*)MMAP_MIN_ADDR+high_watermark, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE, data_fd, high_watermark);
   if (shadow == MAP_FAILED) {
     perror("mmap failed");
     fprintf(stderr, "data_fd: %d\n", data_fd);
@@ -73,9 +73,7 @@ void* xxmalloc(size_t size) {
   
   high_watermark += PAGE_SIZE; // 1 obj per physical page
   
-  /* I guess fprintf doesn't have any internal malloc calls */ /* \>.</ */
-  fprintf(stderr, "allocated %u @ %p\n", size, shadow);
-  
+  // fprintf(stderr, "allocated %u @ %p\n", size, shadow);
   
   return shadow;
 }
