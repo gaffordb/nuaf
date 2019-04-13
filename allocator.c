@@ -19,19 +19,35 @@
 #define DATA_SIZE 1000000000
 #define PAGE_SIZE 0x1000
 
+/* obtained via /pro/sys/vm/mmap_min_addr */
+#define MMAP_MIN_ADDR 65536
+
+/* For use in actual malloc/free calls */
 extern void* __libc_malloc(size_t);
+extern void __libc_free(void*);
 
-int data_fd;
-size_t high_watermark;
+int data_fd = 0;
+size_t high_watermark = 0;
 
+void __attribute__((destructor)) destroy_mem(void) {
+  close(data_fd);
+}
 void __attribute__((constructor)) init_mem(void) {
   errno = 0;
-  data_fd = open("/tmp/data_for_me", O_CREAT|O_RDWR);
-  ftruncate(data_fd, DATA_SIZE);
-  high_watermark = 0;
-  if(!errno) {
-    perror("something?");
+
+  data_fd = open("./.my_data", O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+
+  if(data_fd == -1) {
+    perror("open");
+    exit(1);
   }
+
+  if(ftruncate(data_fd, DATA_SIZE)) {
+    perror("ftruncate");
+  }
+
+  high_watermark = 0;
+
 }
 
 /**
@@ -42,27 +58,26 @@ void __attribute__((constructor)) init_mem(void) {
  */
 void* xxmalloc(size_t size) {
 
+  /* For mallocs called before constructor, use glibc implementation */
+  if(!data_fd) {
+    return __libc_malloc(size);
+  }
 
-  /* Call original malloc, but with enough space to include address for bookkeeping (as done in Dhurjati & Adve (2006), and Oscar) */
-  //void* canonical = __libc_malloc(size+sizeof(void*));
-  //  void* shadow_page = mremap(canonical, 0, size+sizeof(void*), flags); //somehow we will force this to only increase during one execution
-
-  void* shadow = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE, high_watermark, data_fd);
+  /* Make shadow starting at MMAP_MIN_ADDR, and going up according to high_watermark */
+  void* shadow = mmap((void*)MMAP_MIN_ADDR+high_watermark, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE, data_fd, 0);
   if (shadow == MAP_FAILED) {
     perror("mmap failed");
+    fprintf(stderr, "data_fd: %d\n", data_fd);
     exit(1);
   }
   
   high_watermark += PAGE_SIZE; // 1 obj per physical page
   
-  // void* canonical_page = mmap(NULL, size + sizeof(void*), PROT_NONE, MAP_SHARED | MAP_ANONYMOUS);
   /* I guess fprintf doesn't have any internal malloc calls */ /* \>.</ */
-  fprintf(stderr, "allocated %ul @ %p\n", size+sizeof(void*), shadow);
+  fprintf(stderr, "allocated %u @ %p\n", size, shadow);
   
-  // The first sizeof(ptr) will be use to store allocated; 
-  // Some mremap work to create the shadow page 
   
-  return (shadow + sizeof(void*));
+  return shadow;
 }
 
 size_t xxmalloc_usable_size(void* ptr);
@@ -72,18 +87,26 @@ size_t xxmalloc_usable_size(void* ptr);
  * \param ptr   A pointer somewhere inside the object that is being freed
  */
 void xxfree(void* ptr) {
-  munmap(ptr, xxmalloc_usable_size(ptr));
-  // unmap the shadow page
-  //  free(/* ptr_containing_the_address_in_the_canonical_page*/);
+  if(!data_fd) {
+    __libc_free(ptr);
+    return;
+  }
+  
+  /* unmap the shadow page */
+  if(munmap(ptr, xxmalloc_usable_size(ptr))) {
+    perror("munmap");
+  }
+  
+  fprintf(stderr, "Unmapped ptr: %p\n", ptr);
 }
 
-/*
+/**
  * Get the available size of an allocated object
  * \param ptr   A pointer somewhere inside the allocated object
  * \returns     The number of bytes available for use in this object
  */
 size_t xxmalloc_usable_size(void* ptr) {
-  // doesn't matter
+  // TODO
   return PAGE_SIZE;
 }
 
