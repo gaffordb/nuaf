@@ -21,6 +21,7 @@
 
 /* obtained via /pro/sys/vm/mmap_min_addr */
 #define MMAP_MIN_ADDR 65536
+#define OBJ_HEADER sizeof(size_t)
 
 /* For use in actual malloc/free calls */
 extern void* __libc_malloc(size_t);
@@ -47,7 +48,6 @@ void __attribute__((constructor)) init_mem(void) {
   }
 
   high_watermark = 0;
-
 }
 
 /**
@@ -63,21 +63,26 @@ void* xxmalloc(size_t size) {
     return __libc_malloc(size);
   }
 
-  size_t page_number = (size / PAGE_SIZE) + 1;
-
+  /* Allocate enough space for some metadata */
+  size+=OBJ_HEADER;
+    
+  size_t num_pages = (size / PAGE_SIZE) + 1;
+  
   /* Make shadow starting at MMAP_MIN_ADDR, and going up according to high_watermark */
-  void* shadow = mmap((void*)MMAP_MIN_ADDR+high_watermark, page_number *  PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE, data_fd, high_watermark);
+  void* shadow = mmap((void*)MMAP_MIN_ADDR+high_watermark, num_pages *  PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE, data_fd, high_watermark);
   if (shadow == MAP_FAILED) {
     perror("mmap failed");
     fprintf(stderr, "data_fd: %d\n", data_fd);
     exit(1);
   }
   
-  high_watermark += PAGE_SIZE * page_number; // 1 obj per physical page
+  high_watermark += PAGE_SIZE * num_pages; // 1 obj per physical page
+
+  /* Put in num_pages for metadata */
+  *(size_t*)shadow = num_pages;
+  fprintf(stderr, "allocated %u @ %p\n", size, shadow);
   
-  // fprintf(stderr, "allocated %u @ %p\n", size, shadow);
-  
-  return shadow;
+  return shadow+OBJ_HEADER;
 }
 
 size_t xxmalloc_usable_size(void* ptr);
@@ -91,13 +96,16 @@ void xxfree(void* ptr) {
     __libc_free(ptr);
     return;
   }
+
+  ptr -= OBJ_HEADER;
+  size_t obj_size = xxmalloc_usable_size(ptr);
   
   /* unmap the shadow page */
-  if(munmap(ptr, xxmalloc_usable_size(ptr))) {
+  if(munmap(ptr, obj_size)) {
     perror("munmap");
   }
   
-  fprintf(stderr, "Unmapped ptr: %p\n", ptr);
+  fprintf(stderr, "Unmapped %p to %p \n", ptr, ptr+obj_size);
 }
 
 /**
@@ -106,7 +114,16 @@ void xxfree(void* ptr) {
  * \returns     The number of bytes available for use in this object
  */
 size_t xxmalloc_usable_size(void* ptr) {
-  // TODO
-  return PAGE_SIZE;
+  size_t num_pages = (*(size_t*)ptr);
+  //  fprintf(stderr, "Actual size is: %zu\n", num_pages);
+  return PAGE_SIZE*num_pages;
+}
+
+
+void* realloc(void* ptr, size_t size) {
+  void* new_mem = xxmalloc(size);
+  bcopy(ptr+OBJ_HEADER, new_mem+OBJ_HEADER, size);
+  xxfree(ptr);
+  return xxmalloc(size);
 }
 
