@@ -63,15 +63,17 @@ void* xxmalloc(size_t size) {
     return __libc_malloc(size);
   }
 
+  size_t page_number = (size / PAGE_SIZE) + 1;
+
   /* Make shadow starting at MMAP_MIN_ADDR, and going up according to high_watermark */
-  void* shadow = mmap((void*)MMAP_MIN_ADDR+high_watermark, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE, data_fd, high_watermark);
+  void* shadow = mmap((void*)MMAP_MIN_ADDR+high_watermark, page_number *  PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE, data_fd, high_watermark);
   if (shadow == MAP_FAILED) {
     perror("mmap failed");
     fprintf(stderr, "data_fd: %d\n", data_fd);
     exit(1);
   }
   
-  high_watermark += PAGE_SIZE; // 1 obj per physical page
+  high_watermark += PAGE_SIZE * page_number; // 1 obj per physical page
   
   // fprintf(stderr, "allocated %u @ %p\n", size, shadow);
   
