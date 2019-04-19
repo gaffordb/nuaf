@@ -30,6 +30,11 @@ extern void __libc_free(void*);
 int data_fd = 0;
 size_t high_watermark = 0;
 
+void sigsegv_handler(int signal, siginfo_t* info, void* ctx) {
+  printf("Got SIGSEGV at address: 0x%lx\n",(long) si->si_addr);
+  exit(EXIT_FAILURE);
+}
+
 void __attribute__((destructor)) destroy_mem(void) {
   close(data_fd);
 }
@@ -48,6 +53,18 @@ void __attribute__((constructor)) init_mem(void) {
   }
 
   high_watermark = 0;
+
+  // Make a sigaction struct to hold our signal handler information
+  struct sigaction sa;
+  memset(&sa, 0, sizeof(struct sigaction));
+  sa.sa_sigaction = sigsegv_handler;
+  sa.sa_flags = SA_SIGINFO;
+  
+  // Set the signal handler, checking for errors
+  if(sigaction(SIGSEGV, &sa, NULL) != 0) {
+    perror("sigaction failed");
+    exit(2);
+  } 
 }
 
 /**
@@ -126,4 +143,6 @@ void* realloc(void* ptr, size_t size) {
   xxfree(ptr);
   return xxmalloc(size);
 }
+
+void 
 
