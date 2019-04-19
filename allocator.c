@@ -16,6 +16,9 @@
 #include <unistd.h>
 #include <errno.h>
 
+#define ROUND_UP(X, Y) ((X) % (Y) == 0 ? (X) : (X) + ((Y) - (X) % (Y)))
+
+#define MIN_SIZE 8
 #define DATA_SIZE 1000000000
 #define PAGE_SIZE 0x1000
 
@@ -29,6 +32,7 @@ extern void __libc_free(void*);
 
 int data_fd = 0;
 size_t high_watermark = 0;
+size_t next_page = MMAP_MIN_ADDR;
 
 void __attribute__((destructor)) destroy_mem(void) {
   close(data_fd);
@@ -48,6 +52,7 @@ void __attribute__((constructor)) init_mem(void) {
   }
 
   high_watermark = 0;
+  size_t next_page = MMAP_MIN_ADDR;
 }
 
 /**
@@ -67,17 +72,18 @@ void* xxmalloc(size_t size) {
   size+=OBJ_HEADER;
     
   size_t num_pages = (size / PAGE_SIZE) + 1;
-  
+
   /* Make shadow starting at MMAP_MIN_ADDR, and going up according to high_watermark */
-  void* shadow = mmap((void*)MMAP_MIN_ADDR+high_watermark, num_pages *  PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE, data_fd, high_watermark);
+  void* shadow = mmap((void*)next_page, num_pages *  PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE, data_fd, high_watermark);
   if (shadow == MAP_FAILED) {
     perror("mmap failed");
     fprintf(stderr, "data_fd: %d\n", data_fd);
     exit(1);
   }
   
-  high_watermark += PAGE_SIZE * num_pages; // 1 obj per physical page
-
+  high_watermark += ROUND_UP(size, MIN_SIZE);
+  next_page += PAGE_SIZE * num_pages;
+  
   /* Put in num_pages for metadata */
   *(size_t*)shadow = num_pages;
   fprintf(stderr, "allocated %u @ %p\n", size, shadow);
