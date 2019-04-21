@@ -1,5 +1,5 @@
 ROOT = .
-TARGETS = myallocator.so
+TARGETS = nuaf.so
 LIBS=dl
 include $(ROOT)/common.mk
 

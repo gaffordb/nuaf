@@ -1,6 +1,10 @@
-all: test1 testbad
+CC=gcc -g
+
+all: test1 testbad test_simple
 
 test1: test1.c
-	gcc test1.c -o ../test1
+	${CC} test1.c -o ../test1
 testbad: testbad.c
-	gcc testbad.c -o ../testbad
+	${CC} testbad.c -o ../testbad
+test_simple: test_simple.c
+	${CC} test_simple.c -o ../test_simple
