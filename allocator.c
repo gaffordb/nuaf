@@ -16,8 +16,14 @@
 #include <unistd.h>
 #include <errno.h>
 #include <signal.h>
+#include <asm/unistd.h>
+#include <sys/syscall.h>
 
-
+/*
+static void* mmap2(void* addr, size_t length, int prot, int flags, int fd, off_t pgoffset) {
+return syscall(__NR_mmap2, addr, length, prot, flags, fd, pgoffset);
+}
+*/
 #define ROUND_UP(X, Y) ((X) % (Y) == 0 ? (X) : (X) + ((Y) - (X) % (Y)))
 #define ROUND_DOWN(X, Y) ((X) % (Y) == 0 ? (X) : (X) - ((X) % (Y)))
 
@@ -27,7 +33,12 @@
 
 /* obtained via /pro/sys/vm/mmap_min_addr */
 #define MMAP_MIN_ADDR 65536
-#define OBJ_HEADER sizeof(size_t)
+
+typedef struct obj_header {
+  intptr_t canonical_addr;
+} obj_header_t;
+
+#define OBJ_HEADER sizeof(obj_header_t)
 
 /* For use in actual malloc/free calls */
 extern void* __libc_malloc(size_t);
@@ -94,12 +105,13 @@ void* xxmalloc(size_t size) {
     printf("Large objects don't work right now, handle special case later.\n");
     return NULL;
   }
+
   /* Allocate enough space for some metadata */
-  //  size+=OBJ_HEADER;
+  size+=OBJ_HEADER;
     
   size_t num_pages = (size / PAGE_SIZE) + 1;
 
-  /* Make shadow starting at MMAP_MIN_ADDR, and going up according to high_watermark */
+  /* Make shadow starting at MMAP_MIN_ADDR, and going up according to high_watermark. mmap2 used so we can index further into the underlying buffer (give offset in terms of num_pages rather than num_bytes*/
   intptr_t shadow = (intptr_t)mmap((void*)next_page, num_pages * PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE, data_fd, ROUND_DOWN(high_watermark, PAGE_SIZE));
   if (shadow == (intptr_t)MAP_FAILED) {
     perror("mmap failed");
@@ -109,17 +121,19 @@ void* xxmalloc(size_t size) {
 
   assert(shadow == (intptr_t)next_page);
 
-  unsigned int offset = high_watermark % PAGE_SIZE;// + OBJ_HEADER;
+  /* Calculate offset into virtual page that corresponds to physical data */
+  unsigned int offset = (high_watermark % PAGE_SIZE) + OBJ_HEADER;
 
+  /* 
+     Store canonical address in obj for future reuse. 
+     Note: high_watermark is the canonical address 
+  */
+  (*(obj_header_t*)(shadow+offset)).canonical_addr = high_watermark;
+  
   fprintf(stderr, "allocated %x @ virtual page: %p, physical page: %p, offset=%x\n", size, shadow, high_watermark, offset);
     
   high_watermark += ROUND_UP(size, MIN_SIZE);
   next_page += PAGE_SIZE * num_pages;
-  
-  /* Put in num_pages for metadata */
-  //  *(size_t*)(shadow+offset) = num_pages;
-  
-
   
   return (void*)(shadow + offset);
 }
