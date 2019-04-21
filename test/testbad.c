@@ -19,13 +19,9 @@ int main(void) {
 
   void* pbad = malloc(512);
   free(pbad);
-  *(int*)pbad;
-  printf("Finished.\n");
-  /*
-  printf("Dereferencing okay pointer...\n");
-  int x = *(int*)p5;
-  printf("Dereferencing bad pointer...\n");
-  x = *(int*)p3;
-  printf("Should have segfaulted...\n");
-  */
+
+  printf("Trying bad dereference...\n");
+  
+  int x = *(int*)pbad;
+  printf("Finished.%d\n", x); // using x so compiler is happy
 }
