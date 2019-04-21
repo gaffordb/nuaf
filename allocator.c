@@ -90,9 +90,12 @@ void* xxmalloc(size_t size) {
   if(!data_fd) {
     return __libc_malloc(size);
   }
-
+  if(size > PAGE_SIZE-OBJ_HEADER) {
+    printf("Large objects don't work right now, handle special case later.\n");
+    return NULL;
+  }
   /* Allocate enough space for some metadata */
-  size+=OBJ_HEADER;
+  //  size+=OBJ_HEADER;
     
   size_t num_pages = (size / PAGE_SIZE) + 1;
 
@@ -106,15 +109,15 @@ void* xxmalloc(size_t size) {
 
   assert(shadow == (intptr_t)next_page);
 
-  unsigned int offset = high_watermark % PAGE_SIZE + OBJ_HEADER;
+  unsigned int offset = high_watermark % PAGE_SIZE;// + OBJ_HEADER;
 
-  fprintf(stderr, "allocated %x @ virtual page: %p, physical page: %p, offset=%u\n", size, shadow, high_watermark, offset);
+  fprintf(stderr, "allocated %x @ virtual page: %p, physical page: %p, offset=%x\n", size, shadow, high_watermark, offset);
     
   high_watermark += ROUND_UP(size, MIN_SIZE);
   next_page += PAGE_SIZE * num_pages;
   
   /* Put in num_pages for metadata */
-  *(size_t*)(shadow+offset) = num_pages;
+  //  *(size_t*)(shadow+offset) = num_pages;
   
 
   
@@ -132,9 +135,9 @@ void xxfree(void* ptr) {
     __libc_free(ptr);
     return;
   }
-
-  ptr -= OBJ_HEADER;
-  size_t obj_size = xxmalloc_usable_size(ptr);
+  if(ptr == NULL) { return; }
+  //ptr -= OBJ_HEADER;
+  size_t obj_size = PAGE_SIZE;//xxmalloc_usable_size(ptr);
   
   /* unmap the shadow page */
   if(munmap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), obj_size)) {
@@ -142,7 +145,7 @@ void xxfree(void* ptr) {
     perror("munmap");
   }
   
-  fprintf(stderr, "Unmapped %p to %p \n", ptr, ptr+obj_size);
+  fprintf(stderr, "Unmapped %p to %p \n", (void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), (void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE)+obj_size);
 }
 
 /**
@@ -156,11 +159,11 @@ size_t xxmalloc_usable_size(void* ptr) {
   return PAGE_SIZE*num_pages;
 }
 
-
+/*
 void* realloc(void* ptr, size_t size) {
   void* new_mem = xxmalloc(size);
-  bcopy(ptr+OBJ_HEADER, new_mem+OBJ_HEADER, size);
+  bcopy(ptr, new_mem, size);
   xxfree(ptr);
   return xxmalloc(size);
 }
-
+*/
