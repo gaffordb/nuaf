@@ -24,6 +24,7 @@ static void* mmap2(void* addr, size_t length, int prot, int flags, int fd, off_t
 return syscall(__NR_mmap2, addr, length, prot, flags, fd, pgoffset);
 }
 */
+
 #define ROUND_UP(X, Y) ((X) % (Y) == 0 ? (X) : (X) + ((Y) - (X) % (Y)))
 #define ROUND_DOWN(X, Y) ((X) % (Y) == 0 ? (X) : (X) - ((X) % (Y)))
 
@@ -128,7 +129,7 @@ void* xxmalloc(size_t size) {
      Store canonical address in obj for future reuse. 
      Note: high_watermark is the canonical address 
   */
-  (*(obj_header_t*)(shadow+offset)).canonical_addr = high_watermark;
+  (*(obj_header_t*)(shadow+offset-OBJ_HEADER)).canonical_addr = high_watermark;
   
   fprintf(stderr, "allocated %x @ virtual page: %p, physical page: %p, offset=%x\n", size, shadow, high_watermark, offset);
     
