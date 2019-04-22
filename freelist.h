@@ -18,8 +18,8 @@ typedef struct mapping {
 } mapping_t;
 
 typedef struct freelist {
-  off_t offset;       //  
-  off_t current_page; //
+  off_t offset;       // offset into buff
+  off_t current_page; // current page being used by this freelist
   mapping_t buff[PAGE_SIZE*FREELIST_SIZE/sizeof(mapping_t)];
 } freelist_t;
 
@@ -30,10 +30,10 @@ freelist_t g_flsts[NUM_OBJECT_SIZES];
 void freelist_init(int data_fd);
 
 /* Add to the front of freelist -- return true if add successful (i.e., freelist not full) */
-bool freelist_add(freelist_t lst, void* vaddr, off_t canonical_addr);
+bool freelist_push(freelist_t lst, void* vaddr, off_t canonical_addr);
 
 /* Take from the freelist and fill in provided mapping with data */
-void freelist_take(freelist_t lst, size_t obj_size, mapping_t* mapping); 
+void freelist_pop(freelist_t lst, size_t obj_size, mapping_t* mapping); 
 
 /* NOTE: 'correct' free list determined by either obj_size, or by canonical address */
 
