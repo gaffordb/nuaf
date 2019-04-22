@@ -106,10 +106,19 @@ void* xxmalloc(size_t size) {
     printf("Large objects don't work right now, handle special case later.\n");
     return NULL;
   }
-
+  
   /* Allocate enough space for some metadata */
   size+=OBJ_HEADER;
     
+  /* Calculate offset into virtual page that corresponds to physical data */
+  unsigned int offset = (high_watermark % PAGE_SIZE) + OBJ_HEADER;
+
+  /* Ensure no objects straddle page boundary -- Might be necessary in the future. NOTE: logic will be different with size-specific pages */
+  if(offset + size > PAGE_SIZE) {
+    offset = OBJ_HEADER;
+    high_watermark = ROUND_UP(high_watermark, PAGE_SIZE);
+  }
+  
   size_t num_pages = (size / PAGE_SIZE) + 1;
 
   /* Make shadow starting at MMAP_MIN_ADDR, and going up according to high_watermark. mmap2 used so we can index further into the underlying buffer (give offset in terms of num_pages rather than num_bytes*/
@@ -121,9 +130,6 @@ void* xxmalloc(size_t size) {
   }
 
   assert(shadow == (intptr_t)next_page);
-
-  /* Calculate offset into virtual page that corresponds to physical data */
-  unsigned int offset = (high_watermark % PAGE_SIZE) + OBJ_HEADER;
 
   /* 
      Store canonical address in obj for future reuse. 
