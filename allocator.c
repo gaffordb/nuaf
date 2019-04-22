@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 
+#include <asm/unistd.h>
 #include <assert.h>
 #include <dlfcn.h>
 #include <errno.h>
@@ -14,23 +15,20 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <errno.h>
-#include <signal.h>
-#include <asm/unistd.h>
-#include <sys/syscall.h>
 
 /*
-static void* mmap2(void* addr, size_t length, int prot, int flags, int fd, off_t pgoffset) {
-return syscall(__NR_mmap2, addr, length, prot, flags, fd, pgoffset);
+static void* mmap2(void* addr, size_t length, int prot, int flags, int fd, off_t
+pgoffset) { return syscall(__NR_mmap2, addr, length, prot, flags, fd, pgoffset);
 }
 */
 #define ROUND_UP(X, Y) ((X) % (Y) == 0 ? (X) : (X) + ((Y) - (X) % (Y)))
 #define ROUND_DOWN(X, Y) ((X) % (Y) == 0 ? (X) : (X) - ((X) % (Y)))
 
 #define MIN_SIZE 8
-#define DATA_SIZE 0x1000000000 //Now it is a hex!
+#define DATA_SIZE 0x1000000000  // Now it is a hex!
 #define PAGE_SIZE 0x1000
 
 /* obtained via /pro/sys/vm/mmap_min_addr */
@@ -40,14 +38,14 @@ typedef struct obj_header {
   intptr_t canonical_addr;
 } obj_header_t;
 
-#define OBJ_HEADER sizeof(obj_header_t)
+#define OBJ_HEADER_SIZE sizeof(obj_header_t)
 
 /* For use in actual malloc/free calls */
 extern void* __libc_malloc(size_t);
 extern void __libc_free(void*);
 
 int data_fd = 0;
-size_t high_watermark = 0;
+size_t physical_page = 0;
 size_t next_page = MMAP_MIN_ADDR;
 
 void sigsegv_handler(int signal, siginfo_t* info, void* ctx) {
@@ -84,25 +82,24 @@ void __attribute__((constructor)) init_mem(void) {
   }
 
   // Set the high watermark
-  high_watermark = PAGE_SIZE;
+  // physical_page = PAGE_SIZE;
 
-  size_t next_page = MMAP_MIN_ADDR;
+  // size_t next_page = MMAP_MIN_ADDR;
 
-  // Use the first page to hold the free physical page list:
-  long long* first_page =
-      mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE,
-           MAP_PRIVATE, data_fd, 0);
-  
-  // Store all the free pages offset in a list
-  long page_amount = DATA_SIZE / PAGE_SIZE;
-  long long i = PAGE_SIZE;
-  long j = 0;
-  for (; i < DATA_SIZE; i += PAGE_SIZE) {
-    printf("lalala, %ld\n", j);
-    first_page[j] = i;
-    j++;
-  }
+  // // Use the first page to hold the free physical page list:
+  // long long* first_page =
+  //     mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE,
+  //          MAP_PRIVATE, data_fd, 0);
 
+  // // Store all the free pages offset in a list
+  // long page_amount = DATA_SIZE / PAGE_SIZE;
+  // long long i = PAGE_SIZE;
+  // long j = 0;
+  // for (; i < DATA_SIZE; i += PAGE_SIZE) {
+  //   printf("lalala, %ld\n", j);
+  //   first_page[j] = i;
+  //   j++;
+  // }
 }
 
 /**
@@ -116,41 +113,61 @@ void* xxmalloc(size_t size) {
   if (!data_fd) {
     return __libc_malloc(size);
   }
-  if(size > PAGE_SIZE-OBJ_HEADER) {
-    printf("Large objects don't work right now, handle special case later.\n");
+  if (size > PAGE_SIZE - OBJ_HEADER_SIZE) {
+    printf(
+        "Large objects don't work right now, handle special case later.^_^\n");
     return NULL;
   }
 
   /* Allocate enough space for some metadata */
-  size += OBJ_HEADER;
-
+  size += OBJ_HEADER_SIZE;
+  size_t usable_space = PAGE_SIZE - physical_page % PAGE_SIZE;
   size_t num_pages = (size / PAGE_SIZE) + 1;
 
-  /* Make shadow starting at MMAP_MIN_ADDR, and going up according to high_watermark. mmap2 used so we can index further into the underlying buffer (give offset in terms of num_pages rather than num_bytes*/
-  intptr_t shadow = (intptr_t)mmap((void*)next_page, num_pages * PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE, data_fd, ROUND_DOWN(high_watermark, PAGE_SIZE));
-  if (shadow == (intptr_t)MAP_FAILED) {
+  if (size > usable_space) {  // The current page is not enough, we need a new
+                              // page for the object
+    // TODO: Mark the unused space as usable.
+
+    // Move the physical_page to the next physical page
+    physical_page += ROUND_UP(physical_page, PAGE_SIZE);
+  } 
+
+  // _page is the virtual _page page allocated for the object.
+  /* Make _page starting at MMAP_MIN_ADDR, and going up according to
+   * physical_page. mmap2 used so we can index further into the underlying
+   * buffer (give offset in terms of num_pages rather than num_bytes*/
+  intptr_t shadow_page = (intptr_t)mmap((void*)next_page, num_pages * PAGE_SIZE,
+                                   PROT_READ | PROT_WRITE, MAP_PRIVATE, data_fd,
+                                   ROUND_DOWN(physical_page, PAGE_SIZE));
+
+  if (_page == (intptr_t)MAP_FAILED) {
     perror("mmap failed");
     fprintf(stderr, "data_fd: %d\n", data_fd);
     exit(1);
   }
 
-  assert(shadow == (intptr_t)next_page);
+  // the next_page should be assigned to the shawdow page
+  assert(_page == (intptr_t)next_page);
 
+  // offset is where the object should be stored inside the page (_page or
+  // physical)
   /* Calculate offset into virtual page that corresponds to physical data */
-  unsigned int offset = (high_watermark % PAGE_SIZE) + OBJ_HEADER;
+  unsigned int offset = (physical_page % PAGE_SIZE) + OBJ_HEADER_SIZE;
 
-  /* 
-     Store canonical address in obj for future reuse. 
-     Note: high_watermark is the canonical address 
+  /*
+     Store canonical address in obj for future reuse.
+     Note: physical_page is the canonical address
   */
-  (*(obj_header_t*)(shadow+offset)).canonical_addr = high_watermark;
-  
-  fprintf(stderr, "allocated %x @ virtual page: %p, physical page: %p, offset=%x\n", size, shadow, high_watermark, offset);
-    
-  high_watermark += ROUND_UP(size, MIN_SIZE);
+  (*(obj_header_t*)(_page + offset - OBJ_HEADER_SIZE)).canonical_addr = physical_page;
+
+  fprintf(stderr,
+          "allocated %x @ virtual page: %p, physical page: %p, offset=%x\n",
+          size, _page, physical_page, offset);
+
+  physical_page += ROUND_UP(size, MIN_SIZE);
   next_page += PAGE_SIZE * num_pages;
-  
-  return (void*)(shadow + offset);
+
+  return (void*)(_page + offset);
 }
 
 size_t xxmalloc_usable_size(void* ptr);
@@ -164,17 +181,22 @@ void xxfree(void* ptr) {
     __libc_free(ptr);
     return;
   }
-  if(ptr == NULL) { return; }
-  //ptr -= OBJ_HEADER;
-  size_t obj_size = PAGE_SIZE;//xxmalloc_usable_size(ptr);
-  
-  /* unmap the shadow page */
-  if(munmap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), obj_size)) {
-    fprintf(stderr,"ptr: %p, obj_size: %zu\n", (void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), obj_size);
+  if (ptr == NULL) {
+    return;
+  }
+  // ptr -= OBJ_HEADER;
+  size_t obj_size = PAGE_SIZE;  // xxmalloc_usable_size(ptr);
+
+  /* unmap the _page page */
+  if (munmap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), obj_size)) {
+    fprintf(stderr, "ptr: %p, obj_size: %zu\n",
+            (void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), obj_size);
     perror("munmap");
   }
-  
-  fprintf(stderr, "Unmapped %p to %p \n", (void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), (void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE)+obj_size);
+
+  fprintf(stderr, "Unmapped %p to %p \n",
+          (void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE),
+          (void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE) + obj_size);
 }
 
 /**
