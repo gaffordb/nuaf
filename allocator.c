@@ -17,13 +17,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <asm/unistd.h>
-#include <sys/syscall.h>
-
-/*
-static void* mmap2(void* addr, size_t length, int prot, int flags, int fd, off_t pgoffset) {
-return syscall(__NR_mmap2, addr, length, prot, flags, fd, pgoffset);
-}
-*/
+#include <pthread.h>
 
 #define ROUND_UP(X, Y) ((X) % (Y) == 0 ? (X) : (X) + ((Y) - (X) % (Y)))
 #define ROUND_DOWN(X, Y) ((X) % (Y) == 0 ? (X) : (X) - ((X) % (Y)))
@@ -31,6 +25,7 @@ return syscall(__NR_mmap2, addr, length, prot, flags, fd, pgoffset);
 #define MIN_SIZE 8
 #define DATA_SIZE 1000000000
 #define PAGE_SIZE 0x1000
+
 
 /* obtained via /pro/sys/vm/mmap_min_addr */
 #define MMAP_MIN_ADDR 65536
@@ -48,6 +43,7 @@ extern void __libc_free(void*);
 int data_fd = 0;
 size_t high_watermark = 0;
 size_t next_page = MMAP_MIN_ADDR;
+pthread_mutex_t g_m = PTHREAD_MUTEX_INITIALIZER; 
 
 void sigsegv_handler(int signal, siginfo_t* info, void* ctx) {
   printf("Got SIGSEGV at address: 0x%lx\n",(long) info->si_addr);
@@ -58,7 +54,6 @@ void __attribute__((destructor)) destroy_mem(void) {
   close(data_fd);
 }
 void __attribute__((constructor)) init_mem(void) {
-
   // Make a sigaction struct to hold our signal handler information
   struct sigaction sa;
   memset(&sa, 0, sizeof(struct sigaction));
@@ -87,7 +82,6 @@ void __attribute__((constructor)) init_mem(void) {
   high_watermark = 0;
 
   size_t next_page = MMAP_MIN_ADDR;
-
 }
 
 /**
@@ -103,13 +97,15 @@ void* xxmalloc(size_t size) {
     return __libc_malloc(size);
   }
   if(size > PAGE_SIZE-OBJ_HEADER) {
-    printf("Large objects don't work right now, handle special case later.\n");
+    fprintf(stderr, "Large objects don't work right now, handle special case later.\n");
+    errno=ENOTSUP;
     return NULL;
   }
   
   /* Allocate enough space for some metadata */
   size+=OBJ_HEADER;
-    
+
+  pthread_mutex_lock(&g_m);
   /* Calculate offset into virtual page that corresponds to physical data */
   unsigned int offset = (high_watermark % PAGE_SIZE) + OBJ_HEADER;
 
@@ -121,7 +117,7 @@ void* xxmalloc(size_t size) {
   
   size_t num_pages = (size / PAGE_SIZE) + 1;
 
-  /* Make shadow starting at MMAP_MIN_ADDR, and going up according to high_watermark. mmap2 used so we can index further into the underlying buffer (give offset in terms of num_pages rather than num_bytes*/
+  /* Make shadow starting at MMAP_MIN_ADDR, and going up according to high_watermark. mmap2 would be nice but doesn't exist on x86_64... */
   intptr_t shadow = (intptr_t)mmap((void*)next_page, num_pages * PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE, data_fd, ROUND_DOWN(high_watermark, PAGE_SIZE));
   if (shadow == (intptr_t)MAP_FAILED) {
     perror("mmap failed");
@@ -141,6 +137,8 @@ void* xxmalloc(size_t size) {
     
   high_watermark += ROUND_UP(size, MIN_SIZE);
   next_page += PAGE_SIZE * num_pages;
+
+  pthread_mutex_unlock(&g_m);
   
   return (void*)(shadow + offset);
 }
