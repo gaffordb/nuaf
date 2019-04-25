@@ -19,6 +19,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "freelist.h"
+
 #define ROUND_UP(X, Y) ((X) % (Y) == 0 ? (X) : (X) + ((Y) - (X) % (Y)))
 #define ROUND_DOWN(X, Y) ((X) % (Y) == 0 ? (X) : (X) - ((X) % (Y)))
 
@@ -93,8 +95,9 @@ void* xxmalloc(size_t size) {
     return __libc_malloc(size);
   }
   if (size > PAGE_SIZE - OBJ_HEADER) {
-    fprintf(stderr,
-            "Large objects don't work right now, handle special case later.\n");
+    fprintf(
+        stderr,
+        "Large objects don't work right now, handle special case later. ^_^\n");
     errno = ENOTSUP;
     return NULL;
   }
@@ -103,30 +106,12 @@ void* xxmalloc(size_t size) {
   size += OBJ_HEADER;
 
   pthread_mutex_lock(&g_m);
+
+  mapping_t m;
+  freelist_pop(size, &m, &next_page, data_fd);
+  *((intptr_t*)(m.vaddr)) = m.canonical_addr;
   /* Calculate offset into virtual page that corresponds to physical data */
   unsigned int offset = (canonical_addr % PAGE_SIZE) + OBJ_HEADER;
-
-  /* Ensure no objects straddle page boundary -- Might be necessary in the
-   * future. NOTE: logic will be different with size-specific pages */
-  if (offset + size > PAGE_SIZE) {
-    offset = OBJ_HEADER;
-    canonical_addr = ROUND_UP(canonical_addr, PAGE_SIZE);
-  }
-
-  size_t num_pages = (size / PAGE_SIZE) + 1;
-
-  /* Make shadow_page starting at MMAP_MIN_ADDR, and going up according to
-   * canonical_addr. mmap2 would be nice but doesn't exist on x86_64... */
-  intptr_t shadow_page = (intptr_t)mmap(
-      (void*)next_page, num_pages * PAGE_SIZE, PROT_READ | PROT_WRITE,
-      MAP_PRIVATE, data_fd, ROUND_DOWN(canonical_addr, PAGE_SIZE));
-  if (shadow_page == (intptr_t)MAP_FAILED) {
-    perror("mmap failed");
-    fprintf(stderr, "data_fd: %d\n", data_fd);
-    exit(1);
-  }
-
-  assert(shadow_page == (intptr_t)next_page);
 
   /*
      Store canonical address in obj for future reuse.
@@ -144,7 +129,7 @@ void* xxmalloc(size_t size) {
 
   pthread_mutex_unlock(&g_m);
 
-  return (void*)(shadow_page + offset);
+  return (void*)(m.vaddr + OBJ_HEADER);
 }
 
 size_t xxmalloc_usable_size(void* ptr);
