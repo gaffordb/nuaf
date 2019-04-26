@@ -65,7 +65,7 @@ void __attribute__((constructor)) init_mem(void) {
 
   data_fd = open("./.my_data", O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
   
-  if (data_fd == -1) {
+  if (data_fd == -1) { 
     perror("open");
     exit(1);
   }
@@ -124,7 +124,7 @@ void* xxmalloc(size_t size) {
 
   pthread_mutex_unlock(&g_m);
 
-  return (void*)(m.vaddr + OBJ_HEADER);
+  return (void*)(m.vaddr + offset);
 }
 
 size_t xxmalloc_usable_size(void* ptr);
@@ -145,7 +145,7 @@ void xxfree(void* ptr) {
   //  size_t obj_size = PAGE_SIZE;  // xxmalloc_usable_size(ptr); for large pages
 
   /* Retrieve canonical address that was stored in object metadata */
-  off_t canonical_addr = *(off_t*)((intptr_t)ptr-sizeof(intptr_t));
+  off_t canonical_addr = *(off_t*)((intptr_t)ptr-sizeof(off_t));
   
   /* Get a fresh virtual page for the same canonical object */
   void* fresh_vaddr = mremap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE),

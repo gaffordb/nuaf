@@ -25,48 +25,49 @@ not full) */
 /* we may want to directly pass the size of the freed object to this function as
  * freelists is global */
 void freelist_push(size_t obj_size, void* vaddr, off_t canonical_addr) {
-  int list_index = (int)log2(obj_size) - (int)log2(g_obj_sizes[0])< 0 ? 0 : (int)log2(obj_size) - (int)log2(g_obj_sizes[0]);
-  freelist_t cur_freelist = g_flsts[list_index];
-  if(cur_freelist.offset >= PAGE_SIZE * FREELIST_PAGE_SIZE / sizeof(mapping_t)) {
+  int list_index = (int)log2(obj_size) - (int)log2(g_obj_sizes[0])<= 0 ? 0 : 1+(int)log2(obj_size) - (int)log2(g_obj_sizes[0]);
+  if(g_flsts[list_index].offset >= PAGE_SIZE * FREELIST_PAGE_SIZE / sizeof(mapping_t) - 1) {
     return;
   }
-  cur_freelist.offset++;
-  cur_freelist.buff[cur_freelist.offset].vaddr = vaddr;
-  cur_freelist.buff[cur_freelist.offset].canonical_addr = canonical_addr;
+  g_flsts[list_index].offset++;
+  g_flsts[list_index].buff[g_flsts[list_index].offset].vaddr = vaddr;
+  g_flsts[list_index].buff[g_flsts[list_index].offset].canonical_addr = canonical_addr;
 }
 
 /* Take from the freelist and fill in provided mapping with data */
 void freelist_pop(size_t obj_size, mapping_t* mapping, intptr_t* next_page,
                   int data_fd) {
-  int list_index = (int)log2(obj_size) - (int)log2(g_obj_sizes[0]) < 0 ? 0 : (int)log2(obj_size) - (int)log2(g_obj_sizes[0]);
-  freelist_t cur_freelist = g_flsts[list_index];
-  if (cur_freelist.offset == -1) {  // no free space == freelist is empty
+  int list_index = (int)log2(obj_size) - (int)log2(g_obj_sizes[0]) <= 0 ? 0 : 1+(int)log2(obj_size) - (int)log2(g_obj_sizes[0]);
+  if (g_flsts[list_index].offset == -1) {  // no free space == freelist is empty
 
+    mapping->canonical_addr = g_flsts[list_index].high_canonical_addr;
+    
     mapping->vaddr =
         mmap((void*)(*next_page), PAGE_SIZE, PROT_READ | PROT_WRITE,
              MAP_PRIVATE | MAP_FIXED, data_fd,
-             ROUND_DOWN(cur_freelist.high_canonical_addr, PAGE_SIZE));
+             ROUND_DOWN(g_flsts[list_index].high_canonical_addr, PAGE_SIZE));
     if (mapping->vaddr == MAP_FAILED || mapping->vaddr == NULL) {
       perror("mmap failed");
       fprintf(stderr, "data_fd: %d\n", data_fd);
       exit(1);
     }
     (*next_page) += PAGE_SIZE;
-
-    cur_freelist.high_canonical_addr += obj_size;
-
+    
+    g_flsts[list_index].high_canonical_addr += g_obj_sizes[list_index];
+    
     /* If we fill up a page, move on to the next one.
        Things to keep in mind:
        - This works bc objects are powers of 2
        - Size-segregated pages, cycles of length NUM_OBJECT_SIZES pages 
     */
-    if (cur_freelist.high_canonical_addr % PAGE_SIZE ==  0) {
-      cur_freelist.high_canonical_addr += PAGE_SIZE*(NUM_OBJECT_SIZES-1);
+    if (g_flsts[list_index].high_canonical_addr % PAGE_SIZE ==  0) {
+      g_flsts[list_index].high_canonical_addr += PAGE_SIZE*(NUM_OBJECT_SIZES-1);
     }
 
   } else {
-    *mapping = cur_freelist.buff[cur_freelist.offset];
-    cur_freelist.offset--;
+    fprintf(stderr, "Reusing object.\n");
+    *mapping = g_flsts[list_index].buff[g_flsts[list_index].offset];
+    g_flsts[list_index].offset--;
   }
 }
 
