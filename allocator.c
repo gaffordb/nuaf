@@ -21,12 +21,8 @@
 
 #include "freelist.h"
 
-#define ROUND_UP(X, Y) ((X) % (Y) == 0 ? (X) : (X) + ((Y) - (X) % (Y)))
-#define ROUND_DOWN(X, Y) ((X) % (Y) == 0 ? (X) : (X) - ((X) % (Y)))
-
 #define MIN_SIZE 8
 #define DATA_SIZE 1000000000
-#define PAGE_SIZE 0x1000
 
 /* obtained via /pro/sys/vm/mmap_min_addr */
 #define MMAP_MIN_ADDR 65536
@@ -68,7 +64,7 @@ void __attribute__((constructor)) init_mem(void) {
   errno = 0;
 
   data_fd = open("./.my_data", O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
-
+  
   if (data_fd == -1) {
     perror("open");
     exit(1);
@@ -78,6 +74,8 @@ void __attribute__((constructor)) init_mem(void) {
     perror("ftruncate");
   }
 
+  freelist_init(data_fd);
+    
   canonical_addr = 0;
 
   size_t next_page = MMAP_MIN_ADDR;
@@ -94,7 +92,7 @@ void* xxmalloc(size_t size) {
   if (!data_fd) {
     return __libc_malloc(size);
   }
-  if (size > PAGE_SIZE - OBJ_HEADER) {
+  if (size > PAGE_SIZE - OBJ_HEADER || size > 1024 - OBJ_HEADER) {
     fprintf(
         stderr,
         "Large objects don't work right now, handle special case later. ^_^\n");
@@ -109,23 +107,20 @@ void* xxmalloc(size_t size) {
 
   mapping_t m;
   freelist_pop(size, &m, &next_page, data_fd);
-  *((intptr_t*)(m.vaddr)) = m.canonical_addr;
+
   /* Calculate offset into virtual page that corresponds to physical data */
-  unsigned int offset = (canonical_addr % PAGE_SIZE) + OBJ_HEADER;
+  unsigned int offset = (m.canonical_addr % PAGE_SIZE) + OBJ_HEADER;
 
   /*
      Store canonical address in obj for future reuse.
      Note: canonical_addr is the canonical address
   */
-  (*(obj_header_t*)(shadow_page + offset - OBJ_HEADER)).canonical_addr =
-      canonical_addr;
+  (*(obj_header_t*)(m.vaddr + offset - OBJ_HEADER)).canonical_addr =
+      m.canonical_addr;
 
   fprintf(stderr,
           "allocated %x @ virtual page: %p, physical page: %p, offset=%x\n",
-          size, shadow_page, canonical_addr, offset);
-
-  canonical_addr += ROUND_UP(size, MIN_SIZE);
-  next_page += PAGE_SIZE * num_pages;
+          size, m.vaddr, m.canonical_addr, offset);
 
   pthread_mutex_unlock(&g_m);
 
@@ -146,16 +141,24 @@ void xxfree(void* ptr) {
   if (ptr == NULL) {
     return;
   }
-  // ptr -= OBJ_HEADER;
-  size_t obj_size = PAGE_SIZE;  // xxmalloc_usable_size(ptr);
 
-  /* unmap the shadow_page page */
-  if (munmap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), obj_size)) {
-    fprintf(stderr, "ptr: %p, obj_size: %zu\n",
-            (void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), obj_size);
-    perror("munmap");
-  }
+  //  size_t obj_size = PAGE_SIZE;  // xxmalloc_usable_size(ptr); for large pages
 
+  /* Retrieve canonical address that was stored in object metadata */
+  off_t canonical_addr = *(off_t*)((intptr_t)ptr-sizeof(intptr_t));
+  
+  /* Get a fresh virtual page for the same canonical object */
+  void* fresh_vaddr = mremap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE),
+                              PAGE_SIZE, PAGE_SIZE,
+                              MREMAP_FIXED | MREMAP_MAYMOVE, next_page);
+  
+  assert((intptr_t)fresh_vaddr == next_page);
+  next_page += PAGE_SIZE;
+
+  /* Determine object size */
+  size_t obj_size = get_obj_size_by_addr(canonical_addr);
+  
+  freelist_push(obj_size, fresh_vaddr, canonical_addr);
   fprintf(stderr, "Unmapped %p to %p \n",
           (void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE),
           (void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE) + obj_size);
@@ -172,11 +175,3 @@ size_t xxmalloc_usable_size(void* ptr) {
   return PAGE_SIZE * num_pages;
 }
 
-/*
-void* realloc(void* ptr, size_t size) {
-  void* new_mem = xxmalloc(size);
-  bcopy(ptr, new_mem, size);
-  xxfree(ptr);
-  return xxmalloc(size);
-}
-*/

@@ -1,15 +1,20 @@
+#pragma once
+
 #include <stdbool.h>
 #include <sys/types.h>
+#include <stdint.h>
 
 /* obtained via /pro/sys/vm/mmap_min_addr */
 #define MMAP_MIN_ADDR 65536
+
+#define ROUND_UP(X, Y) ((X) % (Y) == 0 ? (X) : (X) + ((Y) - (X) % (Y)))
+#define ROUND_DOWN(X, Y) ((X) % (Y) == 0 ? (X) : (X) - ((X) % (Y)))
 
 /*
    Obj sizes. Over 2^10 byte objects will be stored as large objects (1 per
    page) Two pages worth of freelist for each
 */
 #define NUM_OBJECT_SIZES 7
-const unsigned short g_obj_sizes[] = {16, 32, 64, 128, 256, 512, 1024};
 #define FREELIST_PAGE_SIZE 2
 #define PAGE_SIZE 4096
 typedef struct mapping {
@@ -46,3 +51,5 @@ void get_mapping(size_t obj_size, mapping_t* mapping);
 /* Put into correct free list -- return true if successful (i.e., correct
  * freelist not full) */
 bool put_mapping(void* vaddr, off_t canonical_addr);
+
+size_t get_obj_size_by_addr(off_t canonical_addr);
