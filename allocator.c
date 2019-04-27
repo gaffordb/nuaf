@@ -40,7 +40,6 @@ typedef struct obj_header {
 /* For use in actual malloc/free calls */
 extern void* __libc_malloc(size_t);
 extern void __libc_free(void*);
-extern size_t __libc_malloc_usable_size(void*);
 
 int data_fd = 0;
 size_t canonical_addr = 0;
@@ -48,7 +47,7 @@ size_t next_page = MMAP_MIN_ADDR;
 size_t large_obj_next_page = LARGE_OBJ_VADDR_START;
 
 pthread_mutex_t g_m = PTHREAD_MUTEX_INITIALIZER;
-
+pthread_mutex_t g_big_obj_m = PTHREAD_MUTEX_INITIALIZER;
 
 void sigsegv_handler(int signal, siginfo_t* info, void* ctx) {
   printf("Got SIGSEGV at address: 0x%lx\n", (long)info->si_addr);
@@ -73,6 +72,7 @@ void __attribute__((constructor)) init_mem(void) {
 
   errno = 0;
 
+  /* Make backing data file */
   data_fd = open("./.my_data", O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
   
   if (data_fd == -1) { 
@@ -80,17 +80,15 @@ void __attribute__((constructor)) init_mem(void) {
     exit(1);
   }
 
+  /* Grow data file to the appropriate size */
   if (ftruncate(data_fd, DATA_SIZE)) {
     perror("ftruncate");
   }
 
   freelist_init(data_fd);
-    
-  canonical_addr = 0;
-
-  size_t next_page = MMAP_MIN_ADDR;
 }
 
+/* For objects larger than 1024 bytes -- each object given some N*PAGE_SIZE bytes */
 void* xxmalloc_big(size_t size) {
   
   /* Allocate enough space for some metadata */
@@ -98,7 +96,8 @@ void* xxmalloc_big(size_t size) {
 
   size_t num_pages = (size / PAGE_SIZE) + 1;
 
-  /* Make shadow starting at LARGE_OBJECT_START, and going up -- should use MAP_FIXED_NOREPLACE if kernel >= 4.17 */
+  pthread_mutex_lock(&g_big_obj_m);
+  /* Make shadow starting at LARGE_OBJ_VADDR_START, and going up -- should use MAP_FIXED_NOREPLACE if kernel >= 4.17 -- This can clobber existing mappings! */
   void* shadow = mmap((void*)large_obj_next_page,
                       num_pages * PAGE_SIZE, PROT_READ | PROT_WRITE,
                       MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, 0, 0);
@@ -109,15 +108,21 @@ void* xxmalloc_big(size_t size) {
     exit(1);
   }
 
-  large_obj_next_page += PAGE_SIZE * num_pages; // 1 obj per page
+  /* Update next available vaddr for big objects */
+  large_obj_next_page += PAGE_SIZE * num_pages; 
 
-  /* Put in num_pages for metadata */
-  *(size_t*)shadow = (size_t)LARGE_OBJ_START_MAGIC; // So we know where big objs start
-  *(size_t*)(shadow+sizeof(size_t)) = num_pages; // So we know size of big obj
+  pthread_mutex_unlock(&g_big_obj_m);
+    
+  /* So we know where big objs start */
+  *(size_t*)shadow = (size_t)LARGE_OBJ_START_MAGIC;
+
+  /* So we know how big the big obj is */
+  *(size_t*)(shadow+sizeof(size_t)) = num_pages;
   
   //  fprintf(stderr, "allocated big obj %u @ %p\n", size, shadow);
 
-  return shadow+sizeof(size_t)+8;
+  /* Return usable pointer (after object metadata)*/
+  return shadow+sizeof(size_t)*2;
 }
 
 /**
@@ -131,8 +136,9 @@ void* xxmalloc(size_t size) {
   if (!data_fd) {
     init_mem();
   }
-  
-  if (size > PAGE_SIZE - OBJ_HEADER || size > 1024 - OBJ_HEADER) {
+
+  /* If we can only fit 1 per page, use allocator for big obj */
+  if (size > 1024 - OBJ_HEADER) {
     return xxmalloc_big(size);
   }
 
@@ -141,6 +147,7 @@ void* xxmalloc(size_t size) {
 
   pthread_mutex_lock(&g_m);
 
+  /* Get next mapping */
   mapping_t m;
   freelist_pop(size, &m, &next_page, data_fd);
 
@@ -162,6 +169,7 @@ void* xxmalloc(size_t size) {
   
   pthread_mutex_unlock(&g_m);
 
+  /* Return usable pointer (after object metadata)*/
   return (void*)(m.vaddr + offset);
 }
 
@@ -172,9 +180,11 @@ size_t xxmalloc_usable_size(void* ptr);
  * \param ptr   A pointer somewhere inside the object that is being freed
  */
 void xxfree(void* ptr) {
+  /* If the backing file has not been created (i.e., constructor has not been called */
   if (!data_fd) {
     init_mem(); // Call constructor...
   }
+  
   if (ptr == NULL) {
     return;
   }
@@ -182,13 +192,16 @@ void xxfree(void* ptr) {
   /* Determine object size */
   size_t obj_size = xxmalloc_usable_size(ptr);
 
+  /* If it's a big object, don't try to reuse */
   if(obj_size >= PAGE_SIZE) {
     munmap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), obj_size);
     return;
   }
+  
   /* Retrieve canonical address that was stored in object metadata */
   off_t canonical_addr = *(off_t*)((intptr_t)ptr-sizeof(off_t));
-  
+
+  pthread_mutex_lock(&g_m);
   /* Get a fresh virtual page for the same canonical object */
   void* fresh_vaddr = mremap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE),
                               PAGE_SIZE, PAGE_SIZE,
@@ -198,11 +211,14 @@ void xxfree(void* ptr) {
     perror("mremap");
     exit(1);
   }
-  
-  next_page += PAGE_SIZE;
-  
-  freelist_push(obj_size, fresh_vaddr, canonical_addr);
 
+  /* Update high watermark for small object vaddrs */
+  next_page += PAGE_SIZE;
+
+  pthread_mutex_unlock(&g_m);
+
+  freelist_push(obj_size, fresh_vaddr, canonical_addr);
+  
   /*
   fprintf(stderr, "Unmapped %p to %p \n",
           (void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE),
