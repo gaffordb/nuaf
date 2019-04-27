@@ -1,92 +1,77 @@
 #include "freelist.h"
 #include <math.h>
 #include <stdbool.h>
-#include <sys/types.h>
 #include <stdint.h>
-#include <sys/mman.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/mman.h>
+#include <sys/types.h>
 
 /* Array of freelists */
-freelist_t g_flsts[NUM_OBJECT_SIZES];
-const unsigned short g_obj_sizes[] = {16, 32, 64, 128, 256, 512, 1024};
+freelist_t g_flsts[NUM_BLOCK_TYPES];
+
+// const unsigned short g_obj_sizes[] = {8, 16, 32, 64, 128, 256, 512, 1024,
+// 2048};
 
 /* Init freelist */
-void freelist_init(int data_fd) {
-  for (int i = 0; i < NUM_OBJECT_SIZES; i++) {
-    g_flsts[i].offset = -1;  // means there is no free space
-    g_flsts[i].high_canonical_addr = i*PAGE_SIZE;
+void freelist_init() {
+  for (int i = 0; i < NUM_BLOCK_TYPES; i++) {
+    g_flsts[i].top_of_stack = NULL;  // means there is no free space
+    g_flsts[i].high_canonical_addr = i * PAGE_SIZE;
   }
 }
 
 /* should be call when someone is freed
-/* Add to the front of freelist -- return true if add successful (i.e., freelist
-not full) */
-/* we may want to directly pass the size of the freed object to this function as
- * freelists is global */
-void freelist_push(size_t obj_size, void* vaddr, off_t canonical_addr) {
-  int list_index = (int)ceil(log2(obj_size)) - (int)log2(g_obj_sizes[0])<= 0 ? 0 : (int)log2(obj_size) - (int)log2(g_obj_sizes[0]);
+/* Add to the front of freelist */
+void freelist_push(void* obj_vaddr) {
+  void* real_vaddr = obj_vaddr - 1;
+  int8_t block_type =
+      *((int8_t*)(obj_vaddr -
+                  1));  // read the type metadata in the byte before vaddr
 
-  /*  If freelist is full, we can just unmap it... */
-  if(g_flsts[list_index].offset >= (PAGE_SIZE * FREELIST_PAGE_SIZE / (signed long long)sizeof(mapping_t) - 1)) {
-    fprintf(stderr, "Is it true? %d %d\n", g_flsts[list_index].offset >= PAGE_SIZE * FREELIST_PAGE_SIZE / sizeof(mapping_t) - 1, PAGE_SIZE * FREELIST_PAGE_SIZE / sizeof(mapping_t) - 1);
-
-    munmap(vaddr, PAGE_SIZE);
-    return;
-  }
-  g_flsts[list_index].offset++;
-  g_flsts[list_index].buff[g_flsts[list_index].offset].vaddr = vaddr;
-  g_flsts[list_index].buff[g_flsts[list_index].offset].canonical_addr = canonical_addr;
+  *((void**)real_vaddr) = g_flsts[block_type].top_of_stack; //store the current top in the new real_vaddr
+  g_flsts[block_type].top_of_stack = real_vaddr;
 }
 
-/* Take from the freelist and fill in provided mapping with data */
-void freelist_pop(size_t obj_size, mapping_t* mapping,
-                  intptr_t* next_page, int data_fd) {
-  int list_index = (int)ceil(log2(obj_size)) - (int)log2(g_obj_sizes[0]) <= 0 ? 0 : (int)log2(obj_size) - (int)log2(g_obj_sizes[0]);
-  if (g_flsts[list_index].offset == -1) {  // no free space == freelist is empty
+/* Return the top of freelist */
+void* freelist_pop(size_t real_size, intptr_t* high_vaddr, int data_fd) {
+  int8_t block_type =
+      real_size < MIN_BLOCK_SIZE ? 0 : (int)(log2(real_size)) - MAGIC_NUMBER;
+  void* real_vaddr = NULL;
+  if (g_flsts[block_type].top_of_stack == NULL) {  //freelist is empty
 
-    mapping->canonical_addr = g_flsts[list_index].high_canonical_addr;
-    
-    mapping->vaddr =
-        mmap((void*)(*next_page), PAGE_SIZE, PROT_READ | PROT_WRITE,
+    // mapping->canonical_addr = g_flsts[list_index].high_canonical_addr;
+
+    void * beginning_vaddr =
+        mmap((void*)(*high_vaddr), PAGE_SIZE, PROT_READ | PROT_WRITE,
              MAP_PRIVATE | MAP_FIXED, data_fd,
-             ROUND_DOWN(g_flsts[list_index].high_canonical_addr, PAGE_SIZE));
-    if (mapping->vaddr == MAP_FAILED || mapping->vaddr == NULL) {
+             ROUND_DOWN(g_flsts[block_type].high_canonical_addr, PAGE_SIZE));
+    if (beginning_vaddr == MAP_FAILED || beginning_vaddr == NULL) {
       perror("mmap failed");
       fprintf(stderr, "data_fd: %d\n", data_fd);
       exit(1);
     }
-    (*next_page) += PAGE_SIZE;
-    
-    g_flsts[list_index].high_canonical_addr += g_obj_sizes[list_index];
-    
+    (*high_vaddr) += PAGE_SIZE;
+
+    real_vaddr = beginning_vaddr + (g_flsts[block_type].high_canonical_addr % PAGE_SIZE);
+
+    g_flsts[block_type].high_canonical_addr += 1 << block_type;
+
     /* If we fill up a page, move on to the next one.
        Things to keep in mind:
        - This works bc objects are powers of 2
-       - Size-segregated pages, cycles of length NUM_OBJECT_SIZES pages 
+       - Size-segregated pages, cycles of length NUM_OBJECT_SIZES pages
     */
-    if (g_flsts[list_index].high_canonical_addr % PAGE_SIZE ==  0) {
-      g_flsts[list_index].high_canonical_addr += PAGE_SIZE*(NUM_OBJECT_SIZES-1);
+    if ((intptr_t)g_flsts[block_type].high_canonical_addr % PAGE_SIZE == 0) {
+      g_flsts[block_type].high_canonical_addr +=
+          PAGE_SIZE * (NUM_BLOCK_TYPES - 1);
     }
-
   } else {
     fprintf(stderr, "Reusing object.\n");
-    *mapping = g_flsts[list_index].buff[g_flsts[list_index].offset];
-    g_flsts[list_index].offset--;
+    real_vaddr = g_flsts[block_type].top_of_stack;
+    g_flsts[block_type].top_of_stack = *((void **)real_vaddr);
   }
-}
 
-/* NOTE: 'correct' free list determined by either obj_size, or by canonical
- * address */
-/* not sure about the meaning?
-/* Take from correct free list, and put @ mapping */
-void get_mapping(size_t obj_size, mapping_t* mapping) {}
-
-/* Put into correct free list -- return true if successful (i.e., correct
- * freelist not full) */
-bool put_mapping(void* vaddr, off_t canonical_addr) {}
-
-/* Determine the canonical address from the object size */
-size_t get_obj_size_by_addr(off_t canonical_addr) {
-  return g_obj_sizes[ROUND_DOWN(canonical_addr, PAGE_SIZE) % NUM_OBJECT_SIZES];
+   *((int8_t*) real_vaddr) = block_type;
+    return (real_vaddr + 1);
 }
