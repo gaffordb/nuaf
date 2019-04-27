@@ -29,8 +29,6 @@ void freelist_push(size_t obj_size, void* vaddr, off_t canonical_addr) {
 
   /*  If freelist is full, we can just unmap it... */
   if(g_flsts[list_index].offset >= (PAGE_SIZE * FREELIST_PAGE_SIZE / (signed long long)sizeof(mapping_t) - 1)) {
-    fprintf(stderr, "Is it true? %d %d\n", g_flsts[list_index].offset >= PAGE_SIZE * FREELIST_PAGE_SIZE / sizeof(mapping_t) - 1, PAGE_SIZE * FREELIST_PAGE_SIZE / sizeof(mapping_t) - 1);
-
     munmap(vaddr, PAGE_SIZE);
     return;
   }
@@ -70,7 +68,6 @@ void freelist_pop(size_t obj_size, mapping_t* mapping,
     }
 
   } else {
-    fprintf(stderr, "Reusing object.\n");
     *mapping = g_flsts[list_index].buff[g_flsts[list_index].offset];
     g_flsts[list_index].offset--;
   }

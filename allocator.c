@@ -18,13 +18,13 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <malloc.h>
 
 #include "freelist.h"
 
 #define MIN_SIZE 8
 #define DATA_SIZE 10000000000
-#define LARGE_OBJECT_START ROUND_UP(DATA_SIZE-DATA_SIZE/10, PAGE_SIZE)
-#define LARGE_OBJECT_VADDR_START 0xFFFF000000
+#define LARGE_OBJ_VADDR_START 0xFFFF000000
 
 /* obtained via /proc/sys/vm/mmap_min_addr */
 #define MMAP_MIN_ADDR 65536
@@ -40,11 +40,12 @@ typedef struct obj_header {
 /* For use in actual malloc/free calls */
 extern void* __libc_malloc(size_t);
 extern void __libc_free(void*);
+extern size_t __libc_malloc_usable_size(void*);
 
 int data_fd = 0;
 size_t canonical_addr = 0;
 size_t next_page = MMAP_MIN_ADDR;
-size_t large_obj_high_watermark = LARGE_OBJECT_START;
+size_t large_obj_next_page = LARGE_OBJ_VADDR_START;
 
 pthread_mutex_t g_m = PTHREAD_MUTEX_INITIALIZER;
 
@@ -56,6 +57,7 @@ void sigsegv_handler(int signal, siginfo_t* info, void* ctx) {
 
 void __attribute__((destructor)) destroy_mem(void) { close(data_fd); }
 void __attribute__((constructor)) init_mem(void) {
+  if(data_fd != 0) { return; } // If already called
   
   // Make a sigaction struct to hold our signal handler information
   struct sigaction sa;
@@ -97,21 +99,23 @@ void* xxmalloc_big(size_t size) {
   size_t num_pages = (size / PAGE_SIZE) + 1;
 
   /* Make shadow starting at LARGE_OBJECT_START, and going up -- should use MAP_FIXED_NOREPLACE if kernel >= 4.17 */
-  void* shadow = mmap((void*)LARGE_OBJECT_VADDR_START+large_obj_high_watermark, num_pages * PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED, data_fd, large_obj_high_watermark);
+  void* shadow = mmap((void*)large_obj_next_page,
+                      num_pages * PAGE_SIZE, PROT_READ | PROT_WRITE,
+                      MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, 0, 0);
 
-  if(shadow == MAP_FAILED || shadow != (void*)LARGE_OBJECT_VADDR_START+large_obj_high_watermark) {
+  if(shadow == MAP_FAILED || shadow != (void*)large_obj_next_page) {
     perror("mmap failed");
     fprintf(stderr, "data_fd: %d\n", data_fd);
     exit(1);
   }
 
-  large_obj_high_watermark += PAGE_SIZE * num_pages; // 1 obj per page
+  large_obj_next_page += PAGE_SIZE * num_pages; // 1 obj per page
 
   /* Put in num_pages for metadata */
   *(size_t*)shadow = (size_t)LARGE_OBJ_START_MAGIC; // So we know where big objs start
   *(size_t*)(shadow+sizeof(size_t)) = num_pages; // So we know size of big obj
   
-  fprintf(stderr, "allocated big obj %u @ %p\n", size, shadow);
+  //  fprintf(stderr, "allocated big obj %u @ %p\n", size, shadow);
 
   return shadow+sizeof(size_t)+8;
 }
@@ -180,6 +184,7 @@ void xxfree(void* ptr) {
 
   if(obj_size >= PAGE_SIZE) {
     munmap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), obj_size);
+    return;
   }
   /* Retrieve canonical address that was stored in object metadata */
   off_t canonical_addr = *(off_t*)((intptr_t)ptr-sizeof(off_t));
@@ -211,13 +216,14 @@ void xxfree(void* ptr) {
  * \returns     The number of bytes available for use in this object
  */
 size_t xxmalloc_usable_size(void* ptr) {
-  if((intptr_t)ptr >= LARGE_OBJECT_VADDR_START) {
+  if((intptr_t)ptr >= LARGE_OBJ_VADDR_START) {
     /* Keep going down pages until we find the beginning of the object */
     while(*(intptr_t*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE) != LARGE_OBJ_START_MAGIC) {
       ptr-=PAGE_SIZE;
     }
     /* number of objects is stored here... */
-    return *(size_t*)(ROUND_DOWN((intptr_t)ptr, PAGE_SIZE)+sizeof(intptr_t)) * PAGE_SIZE;
+    return *(size_t*)(ROUND_DOWN((intptr_t)ptr,PAGE_SIZE) \
+                      + sizeof(intptr_t)) * PAGE_SIZE;
     
   } else {
     /* Retrieve canonical address that was stored in object metadata */
