@@ -25,8 +25,13 @@ not full) */
 /* we may want to directly pass the size of the freed object to this function as
  * freelists is global */
 void freelist_push(size_t obj_size, void* vaddr, off_t canonical_addr) {
-  int list_index = (int)log2(obj_size) - (int)log2(g_obj_sizes[0])<= 0 ? 0 : 1+(int)log2(obj_size) - (int)log2(g_obj_sizes[0]);
-  if(g_flsts[list_index].offset >= PAGE_SIZE * FREELIST_PAGE_SIZE / sizeof(mapping_t) - 1) {
+  int list_index = (int)ceil(log2(obj_size)) - (int)log2(g_obj_sizes[0])<= 0 ? 0 : (int)log2(obj_size) - (int)log2(g_obj_sizes[0]);
+
+  /*  If freelist is full, we can just unmap it... */
+  if(g_flsts[list_index].offset >= (PAGE_SIZE * FREELIST_PAGE_SIZE / (signed long long)sizeof(mapping_t) - 1)) {
+    fprintf(stderr, "Is it true? %d %d\n", g_flsts[list_index].offset >= PAGE_SIZE * FREELIST_PAGE_SIZE / sizeof(mapping_t) - 1, PAGE_SIZE * FREELIST_PAGE_SIZE / sizeof(mapping_t) - 1);
+
+    munmap(vaddr, PAGE_SIZE);
     return;
   }
   g_flsts[list_index].offset++;
@@ -35,9 +40,9 @@ void freelist_push(size_t obj_size, void* vaddr, off_t canonical_addr) {
 }
 
 /* Take from the freelist and fill in provided mapping with data */
-void freelist_pop(size_t obj_size, mapping_t* mapping, intptr_t* next_page,
-                  int data_fd) {
-  int list_index = (int)log2(obj_size) - (int)log2(g_obj_sizes[0]) <= 0 ? 0 : 1+(int)log2(obj_size) - (int)log2(g_obj_sizes[0]);
+void freelist_pop(size_t obj_size, mapping_t* mapping,
+                  intptr_t* next_page, int data_fd) {
+  int list_index = (int)ceil(log2(obj_size)) - (int)log2(g_obj_sizes[0]) <= 0 ? 0 : (int)log2(obj_size) - (int)log2(g_obj_sizes[0]);
   if (g_flsts[list_index].offset == -1) {  // no free space == freelist is empty
 
     mapping->canonical_addr = g_flsts[list_index].high_canonical_addr;

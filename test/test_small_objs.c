@@ -33,8 +33,8 @@ int main(void) {
     void* p5 = malloc(p5_size);
 
     /* Get canonical address of object */
-    off_t canonical_addr = *(off_t*)((intptr_t)p1-8);
-    fprintf(stderr, "Canonical address: %p\n", canonical_addr);
+    off_t canonical_addr = *(off_t*)((off_t)p1-8);
+    //    fprintf(stderr, "Canonical address: %p\n", canonical_addr);
     
     memset(p1, 1, p1_size);
     memset(p2, 2, p2_size);
