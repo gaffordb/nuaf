@@ -97,7 +97,10 @@ void* xxmalloc_big(size_t size) {
   size_t num_pages = (size / PAGE_SIZE) + 1;
 
   pthread_mutex_lock(&g_big_obj_m);
-  /* Make shadow starting at LARGE_OBJ_VADDR_START, and going up -- should use MAP_FIXED_NOREPLACE if kernel >= 4.17 -- This can clobber existing mappings! */
+  /* 
+   * Make shadow starting at LARGE_OBJ_VADDR_START, and going up -- should use MAP_FIXED_NOREPLACE if kernel >= 4.17 -- This can clobber existing mappings!
+   * Note: MAP_ANONYMOUS is okay here because we're not really even using shadow mappings... 
+*/
   void* shadow = mmap((void*)large_obj_next_page,
                       num_pages * PAGE_SIZE, PROT_READ | PROT_WRITE,
                       MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, 0, 0);
@@ -154,10 +157,7 @@ void* xxmalloc(size_t size) {
   /* Calculate offset into virtual page that corresponds to physical data */
   unsigned int offset = (m.canonical_addr % PAGE_SIZE) + OBJ_HEADER;
 
-  /*
-     Store canonical address in obj for future reuse.
-     Note: canonical_addr is the canonical address
-  */
+  /* Store canonical address in obj for future reuse. */
   (*(obj_header_t*)(m.vaddr + offset - OBJ_HEADER)).canonical_addr =
       m.canonical_addr;
 
@@ -202,6 +202,7 @@ void xxfree(void* ptr) {
   off_t canonical_addr = *(off_t*)((intptr_t)ptr-sizeof(off_t));
 
   pthread_mutex_lock(&g_m);
+  
   /* Get a fresh virtual page for the same canonical object */
   void* fresh_vaddr = mremap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE),
                               PAGE_SIZE, PAGE_SIZE,
@@ -217,6 +218,8 @@ void xxfree(void* ptr) {
 
   pthread_mutex_unlock(&g_m);
 
+  /* Add recycled object to its corresponding freelist 
+     (determined by canonical_addr) */
   freelist_push(obj_size, fresh_vaddr, canonical_addr);
   
   /*
