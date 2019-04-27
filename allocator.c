@@ -18,12 +18,12 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <malloc.h>
 
 #include "freelist.h"
 
 #define DATA_SIZE 10000000000
-#define LARGE_OBJECT_START ROUND_UP(DATA_SIZE - DATA_SIZE / 10, PAGE_SIZE)
-#define LARGE_OBJECT_VADDR_START 0xFFFF000000
+#define LARGE_OBJ_VADDR_START 0xFFFF000000
 
 /* obtained via /proc/sys/vm/mmap_min_addr */
 #define MMAP_MIN_ADDR 65536
@@ -37,11 +37,11 @@ extern void* __libc_malloc(size_t);
 extern void __libc_free(void*);
 
 int data_fd = 0;
-size_t canonical_addr = 0;
 size_t high_vaddr = MMAP_MIN_ADDR;
-size_t large_obj_high_watermark = LARGE_OBJECT_START;
+size_t large_obj_next_page = LARGE_OBJ_VADDR_START;
 
 pthread_mutex_t g_m = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t g_big_obj_m = PTHREAD_MUTEX_INITIALIZER;
 
 void sigsegv_handler(int signal, siginfo_t* info, void* ctx) {
   printf("Got SIGSEGV at address: 0x%lx\n", (long)info->si_addr);
@@ -50,6 +50,8 @@ void sigsegv_handler(int signal, siginfo_t* info, void* ctx) {
 
 void __attribute__((destructor)) destroy_mem(void) { close(data_fd); }
 void __attribute__((constructor)) init_mem(void) {
+  if(data_fd != 0) { return; } // If already called
+  
   // Make a sigaction struct to hold our signal handler information
   struct sigaction sa;
   memset(&sa, 0, sizeof(struct sigaction));
@@ -64,6 +66,7 @@ void __attribute__((constructor)) init_mem(void) {
 
   errno = 0;
 
+  /* Make backing data file */
   data_fd = open("./.my_data", O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
 
   if (data_fd == -1) {
@@ -71,48 +74,51 @@ void __attribute__((constructor)) init_mem(void) {
     exit(1);
   }
 
+  /* Grow data file to the appropriate size */
   if (ftruncate(data_fd, DATA_SIZE)) {
     perror("ftruncate");
   }
 
   freelist_init(data_fd);
-
-  canonical_addr = 0;
-
-  size_t high_vaddr = MMAP_MIN_ADDR;
 }
 
+/* For objects larger than 1024 bytes -- each object given some N*PAGE_SIZE bytes */
 void* xxmalloc_big(size_t size) {
   /* Allocate enough space for some metadata */
   size += sizeof(size_t) + 8;
 
   size_t num_pages = (size / PAGE_SIZE) + 1;
 
-  /* Make shadow starting at LARGE_OBJECT_START, and going up -- should use
-   * MAP_FIXED_NOREPLACE if kernel >= 4.17 */
-  void* shadow =
-      mmap((void*)LARGE_OBJECT_VADDR_START + large_obj_high_watermark,
-           num_pages * PAGE_SIZE, PROT_READ | PROT_WRITE,
-           MAP_PRIVATE | MAP_FIXED, data_fd, large_obj_high_watermark);
+  pthread_mutex_lock(&g_big_obj_m);
+  /* 
+   * Make shadow starting at LARGE_OBJ_VADDR_START, and going up -- should use MAP_FIXED_NOREPLACE if kernel >= 4.17 -- This can clobber existing mappings!
+   * Note: MAP_ANONYMOUS is okay here because we're not really even using shadow mappings... 
+*/
+  void* shadow = mmap((void*)large_obj_next_page,
+                      num_pages * PAGE_SIZE, PROT_READ | PROT_WRITE,
+                      MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, 0, 0);
 
-  if (shadow == MAP_FAILED ||
-      shadow != (void*)LARGE_OBJECT_VADDR_START + large_obj_high_watermark) {
+  if(shadow == MAP_FAILED || shadow != (void*)large_obj_next_page) {
     perror("mmap failed");
     fprintf(stderr, "data_fd: %d\n", data_fd);
     exit(1);
   }
 
-  large_obj_high_watermark += PAGE_SIZE * num_pages;  // 1 obj per page
+  /* Update next available vaddr for big objects */
+  large_obj_next_page += PAGE_SIZE * num_pages; 
 
-  /* Put in num_pages for metadata */
-  *(size_t*)shadow =
-      (size_t)LARGE_OBJ_START_MAGIC;  // So we know where big objs start
-  *(size_t*)(shadow + sizeof(size_t)) =
-      num_pages;  // So we know size of big obj
+  pthread_mutex_unlock(&g_big_obj_m);
+    
+  /* So we know where big objs start */
+  *(size_t*)shadow = (size_t)LARGE_OBJ_START_MAGIC;
 
-  fprintf(stderr, "allocated big obj %lu @ %p\n", size, shadow);
+  /* So we know how big the big obj is */
+  *(size_t*)(shadow+sizeof(size_t)) = num_pages;
+  
+  //  fprintf(stderr, "allocated big obj %u @ %p\n", size, shadow);
 
-  return shadow + sizeof(size_t) + 8;
+  /* Return usable pointer (after object metadata)*/
+  return shadow+sizeof(size_t)*2;
 }
 
 /**
@@ -127,7 +133,7 @@ void* xxmalloc(size_t size) {
     init_mem();
   }
 
-  // handle large object, ps I dont think the first condition is useful
+  // handle large object
   if (size > LARGEST_BLOCK_SIZE - OBJ_HEADER) {
     return xxmalloc_big(size);
   }
@@ -151,9 +157,11 @@ size_t xxmalloc_usable_size(void* ptr);
  * \param ptr   A pointer somewhere inside the object that is being freed
  */
 void xxfree(void* ptr) {
+  /* If the backing file has not been created (i.e., constructor has not been called */
   if (!data_fd) {
     init_mem();  // Call constructor...
   }
+  
   if (ptr == NULL) {
     return;
   }
@@ -181,6 +189,8 @@ void xxfree(void* ptr) {
     void* new_obj_vaddr = new_vpage + ((intptr_t) new_vpage & PAGE_SIZE);
     freelist_push(new_vpage);
   }
+
+  return;
 }
 
 /**
@@ -189,15 +199,16 @@ void xxfree(void* ptr) {
  * \returns     The number of bytes available for use in this object
  */
 size_t xxmalloc_usable_size(void* ptr) {
-  if ((intptr_t)ptr >= LARGE_OBJECT_VADDR_START) {
+  if((intptr_t)ptr >= LARGE_OBJ_VADDR_START) {
     /* Keep going down pages until we find the beginning of the object */
     while (*(intptr_t*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE) !=
            LARGE_OBJ_START_MAGIC) {
       ptr -= PAGE_SIZE;
     }
     /* number of objects is stored here... */
-    return *(size_t*)(ROUND_DOWN((intptr_t)ptr, PAGE_SIZE) + sizeof(intptr_t)) *
-           PAGE_SIZE;
+    return *(size_t*)(ROUND_DOWN((intptr_t)ptr,PAGE_SIZE) \
+                      + sizeof(intptr_t)) * PAGE_SIZE;
+    
   } else {
     return 0;
   }
