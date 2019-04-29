@@ -67,7 +67,6 @@ void* freelist_pop(size_t real_size, intptr_t* high_vaddr, int data_fd) {
           PAGE_SIZE * (NUM_BLOCK_TYPES - 1);
     }
   } else {
-    fprintf(stderr, "Reusing object.\n");
     real_vaddr = g_flsts[block_type].top_of_stack;
     g_flsts[block_type].top_of_stack = *((void **)real_vaddr);
   }

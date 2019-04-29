@@ -170,7 +170,8 @@ void xxfree(void* ptr) {
   size_t obj_size = xxmalloc_usable_size(ptr);
 
   if (obj_size >= PAGE_SIZE) {
-    munmap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), obj_size);
+    //    munmap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), obj_size);
+    return;
   } else {
 
 
@@ -185,9 +186,8 @@ void xxfree(void* ptr) {
     }
 
     high_vaddr += PAGE_SIZE;
-
-    void* new_obj_vaddr = new_vpage + ((intptr_t) new_vpage & PAGE_SIZE);
-    freelist_push(new_vpage);
+    void* new_obj_vaddr = new_vpage + ((intptr_t) ptr, obj_size) + 1;
+    freelist_push(new_obj_vaddr);
   }
 
   return;
@@ -205,10 +205,8 @@ size_t xxmalloc_usable_size(void* ptr) {
            LARGE_OBJ_START_MAGIC) {
       ptr -= PAGE_SIZE;
     }
-    /* number of objects is stored here... */
-    return *(size_t*)(ROUND_DOWN((intptr_t)ptr,PAGE_SIZE) \
-                      + sizeof(intptr_t)) * PAGE_SIZE;
-    
+    return pow(2, *(int8_t*)(ROUND_DOWN((intptr_t)ptr, PAGE_SIZE)))*MIN_BLOCK_SIZE;
+
   } else {
     return 0;
   }
