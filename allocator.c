@@ -174,7 +174,6 @@ void xxfree(void* ptr) {
     return;
   } else {
 
-
     /* Get a fresh virtual page for the same canonical object */
     void* new_vpage =
         mremap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), PAGE_SIZE,
@@ -186,7 +185,9 @@ void xxfree(void* ptr) {
     }
 
     high_vaddr += PAGE_SIZE;
-    void* new_obj_vaddr = new_vpage + ((intptr_t) ptr, obj_size) + 1;
+
+    
+    void* new_obj_vaddr = new_vpage + ((intptr_t) ptr, obj_size) + 8;
     freelist_push(new_obj_vaddr);
   }
 
@@ -205,7 +206,7 @@ size_t xxmalloc_usable_size(void* ptr) {
            LARGE_OBJ_START_MAGIC) {
       ptr -= PAGE_SIZE;
     }
-    return pow(2, *(int8_t*)(ROUND_DOWN((intptr_t)ptr, PAGE_SIZE)))*MIN_BLOCK_SIZE;
+    return pow(2, *(int64_t*)(ROUND_DOWN((intptr_t)ptr, PAGE_SIZE)))*MIN_BLOCK_SIZE;
 
   } else {
     return 0;

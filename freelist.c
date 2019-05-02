@@ -24,10 +24,10 @@ void freelist_init() {
 /* should be call when someone is freed
 /* Add to the front of freelist */
 void freelist_push(void* obj_vaddr) {
-  void* real_vaddr = obj_vaddr - 1;
+  void* real_vaddr = obj_vaddr - sizeof(int64_t);
   int8_t block_type =
       *((int8_t*)(obj_vaddr -
-                  1));  // read the type metadata in the byte before vaddr
+                  sizeof(int64_t)));  // read the type metadata in the byte before vaddr
 
   *((void**)real_vaddr) = g_flsts[block_type].top_of_stack; //store the current top in the new real_vaddr
   g_flsts[block_type].top_of_stack = real_vaddr;
@@ -71,6 +71,6 @@ void* freelist_pop(size_t real_size, intptr_t* high_vaddr, int data_fd) {
     g_flsts[block_type].top_of_stack = *((void **)real_vaddr);
   }
 
-   *((int8_t*) real_vaddr) = block_type;
-    return (real_vaddr + 1);
+   *((int64_t*) real_vaddr) = block_type;
+   return (real_vaddr + sizeof(int64_t));
 }
