@@ -50,6 +50,7 @@ void sigsegv_handler(int signal, siginfo_t* info, void* ctx) {
 
 void __attribute__((destructor)) destroy_mem(void) { close(data_fd); }
 void __attribute__((constructor)) init_mem(void) {
+  fprintf(stderr,"haha%d\n", data_fd);
   if(data_fd != 0) { return; } // If already called
   
   // Make a sigaction struct to hold our signal handler information
@@ -59,10 +60,10 @@ void __attribute__((constructor)) init_mem(void) {
   sa.sa_flags = SA_SIGINFO;
 
   // Set the signal handler, checking for errors
-  if (sigaction(SIGSEGV, &sa, NULL) != 0) {
-    perror("sigaction failed");
-    exit(2);
-  }
+  // if (sigaction(SIGSEGV, &sa, NULL) != 0) {
+  //   perror("sigaction failed");
+  //   exit(2);
+  // }
 
   errno = 0;
 
@@ -109,7 +110,7 @@ void* xxmalloc_big(size_t size) {
 
   pthread_mutex_unlock(&g_big_obj_m);
     
-  /* So we know where big objs start */
+  /* So we know whestderrre big objs start */
   *(size_t*)shadow = (size_t)LARGE_OBJ_START_MAGIC;
 
   /* So we know how big the big obj is */
@@ -134,12 +135,9 @@ void* xxmalloc(size_t size) {
   }
 
   // handle large object
-  if (size > LARGEST_BLOCK_SIZE - OBJ_HEADER) {
+  if (size > LARGEST_BLOCK_SIZE) {
     return xxmalloc_big(size);
   }
-
-  /* Allocate enough space for some metadata */
-  size += OBJ_HEADER;
 
   pthread_mutex_lock(&g_m);
 
@@ -169,11 +167,12 @@ void xxfree(void* ptr) {
   /* Determine object size */
   size_t obj_size = xxmalloc_usable_size(ptr);
 
-  if (obj_size >= PAGE_SIZE) {
-    //    munmap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), obj_size);
+  if (obj_size > LARGEST_BLOCK_SIZE) {
+    //doesnt work w interior ptr on next page
+    // TODO: write func to find the start page
+      munmap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), obj_size);
     return;
   } else {
-
     /* Get a fresh virtual page for the same canonical object */
     void* new_vpage =
         mremap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), PAGE_SIZE,
@@ -187,7 +186,7 @@ void xxfree(void* ptr) {
     high_vaddr += PAGE_SIZE;
 
     
-    void* new_obj_vaddr = new_vpage + ((intptr_t) ptr, obj_size) + 8;
+    void* new_obj_vaddr = new_vpage + ((intptr_t) ptr % PAGE_SIZE);
     freelist_push(new_obj_vaddr);
   }
 

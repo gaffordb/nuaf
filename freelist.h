@@ -16,7 +16,9 @@
 */
 #define PAGE_SIZE 4096
 
-#define MAGIC_NUMBER  3
+#define BYTE_ALIGNMENT 16
+
+#define MAGIC_NUMBER  4
 #define MIN_BLOCK_SIZE  (1 << MAGIC_NUMBER)
 #define LARGEST_BLOCK_SIZE  (PAGE_SIZE >> 1)
 #define NUM_BLOCK_TYPES (12 - MAGIC_NUMBER)  // need to be more programatic
