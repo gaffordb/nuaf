@@ -27,9 +27,11 @@
 
 /* obtained via /proc/sys/vm/mmap_min_addr */
 #define MMAP_MIN_ADDR 65536
+
+/* Start of kernel-owned memory */
 #define MMAP_MAX_ADDR CONFIG_PAGE_OFFSET
 
-#define OBJ_HEADER sizeof(int8_t)
+/* Indicates start of large objects */
 #define LARGE_OBJ_START_MAGIC 0xC001Be9
 
 /* For use in actual malloc/free calls */
@@ -50,7 +52,6 @@ void sigsegv_handler(int signal, siginfo_t* info, void* ctx) {
 
 void __attribute__((destructor)) destroy_mem(void) { close(data_fd); }
 void __attribute__((constructor)) init_mem(void) {
-  fprintf(stderr,"haha%d\n", data_fd);
   if(data_fd != 0) { return; } // If already called
   
   // Make a sigaction struct to hold our signal handler information
@@ -60,10 +61,10 @@ void __attribute__((constructor)) init_mem(void) {
   sa.sa_flags = SA_SIGINFO;
 
   // Set the signal handler, checking for errors
-  // if (sigaction(SIGSEGV, &sa, NULL) != 0) {
-  //   perror("sigaction failed");
-  //   exit(2);
-  // }
+  if (sigaction(SIGSEGV, &sa, NULL) != 0) {
+     perror("sigaction failed");
+     exit(2);
+   }
 
   errno = 0;
 
@@ -110,13 +111,13 @@ void* xxmalloc_big(size_t size) {
 
   pthread_mutex_unlock(&g_big_obj_m);
     
-  /* So we know whestderrre big objs start */
+  /* So we know where big objs start */
   *(size_t*)shadow = (size_t)LARGE_OBJ_START_MAGIC;
 
   /* So we know how big the big obj is */
   *(size_t*)(shadow+sizeof(size_t)) = num_pages;
   
-  //  fprintf(stderr, "allocated big obj %u @ %p\n", size, shadow);
+  // fprintf(stderr, "allocated big obj %u @ %p\n", size, shadow);
 
   /* Return usable pointer (after object metadata)*/
   return shadow+sizeof(size_t)*2;
@@ -134,13 +135,14 @@ void* xxmalloc(size_t size) {
     init_mem();
   }
 
-  // handle large object
+  /* If we can only fit 1 per page, use allocator for big obj */
   if (size > LARGEST_BLOCK_SIZE) {
     return xxmalloc_big(size);
   }
 
   pthread_mutex_lock(&g_m);
 
+  /* Get next object (actual address to be given to user) */
   void* obj_vaddr = freelist_pop(size, &high_vaddr, data_fd);
 
   pthread_mutex_unlock(&g_m);
@@ -150,14 +152,32 @@ void* xxmalloc(size_t size) {
 
 size_t xxmalloc_usable_size(void* ptr);
 
+
+/* Point to start of the object -- obj size necessary for small objs */
+void get_obj_start(void** ptr, size_t obj_size) {
+  if((intptr_t)*ptr >= LARGE_OBJ_VADDR_START) {
+    /* Keep going down pages until we find the beginning of the object */
+    while (*(intptr_t*)ROUND_DOWN((intptr_t)*ptr, PAGE_SIZE) !=
+           LARGE_OBJ_START_MAGIC) {
+      *ptr -= PAGE_SIZE;
+    }
+    /* We're on the right page, just round down */
+    *ptr = (void*)ROUND_DOWN((intptr_t)*ptr, PAGE_SIZE);
+  } else /* Small objs */ {
+    /* Round down to the nearest multiple of obj_size */
+    *ptr = (void*)ROUND_DOWN((intptr_t)*ptr-BYTE_ALIGNMENT, obj_size);
+  }
+}
+
 /**
  * Free space occupied by a heap object.
  * \param ptr   A pointer somewhere inside the object that is being freed
  */
 void xxfree(void* ptr) {
-  /* If the backing file has not been created (i.e., constructor has not been called */
+  /* If the backing file has not been created 
+   * (i.e., constructor has not been called) */
   if (!data_fd) {
-    init_mem();  // Call constructor...
+    init_mem();
   }
   
   if (ptr == NULL) {
@@ -167,30 +187,40 @@ void xxfree(void* ptr) {
   /* Determine object size */
   size_t obj_size = xxmalloc_usable_size(ptr);
 
+  /* Get start of object */
+  get_obj_start(&ptr, obj_size);
+  
   if (obj_size > LARGEST_BLOCK_SIZE) {
-    //doesnt work w interior ptr on next page
-    // TODO: write func to find the start page
-      munmap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), obj_size);
+    /* Unmap object (NOTE: not reusing large objects) */
+    munmap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), obj_size);
     return;
   } else {
+    
+    pthread_mutex_lock(&g_m);
+
     /* Get a fresh virtual page for the same canonical object */
     void* new_vpage =
         mremap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), PAGE_SIZE,
                PAGE_SIZE, MREMAP_FIXED | MREMAP_MAYMOVE, high_vaddr);
 
     if (new_vpage == MAP_FAILED) {
+      fprintf(stderr, "prev_addr: %p, new_addr: %p\n", ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), high_vaddr);
+      fprintf(stderr, "mmap gave too many pages for some reason...\n");
+      
       perror("mremap");
       exit(1);
     }
+    /* bad fix bc mmap is giving 2 pages rather than one for some reason earlier in the code
+       new_vpage = mremap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), PAGE_SIZE*2, PAGE_SIZE, MREMAP_FIXED | MREMAP_MAYMOVE, high_vaddr);
+    */
 
     high_vaddr += PAGE_SIZE;
 
+    pthread_mutex_unlock(&g_m);
     
     void* new_obj_vaddr = new_vpage + ((intptr_t) ptr % PAGE_SIZE);
     freelist_push(new_obj_vaddr);
   }
-
-  return;
 }
 
 /**
@@ -199,15 +229,21 @@ void xxfree(void* ptr) {
  * \returns     The number of bytes available for use in this object
  */
 size_t xxmalloc_usable_size(void* ptr) {
+  if(ptr == NULL) { return 0; }
+
+  /* Large objects */
   if((intptr_t)ptr >= LARGE_OBJ_VADDR_START) {
     /* Keep going down pages until we find the beginning of the object */
     while (*(intptr_t*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE) !=
            LARGE_OBJ_START_MAGIC) {
       ptr -= PAGE_SIZE;
     }
-    return pow(2, *(int64_t*)(ROUND_DOWN((intptr_t)ptr, PAGE_SIZE)))*MIN_BLOCK_SIZE;
-
-  } else {
-    return 0;
   }
+  
+  /* Small objects */
+  else {
+    return 1 << 
+      (*(int*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE) + MAGIC_NUMBER);
+  }
+  return 0;
 }

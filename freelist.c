@@ -45,6 +45,7 @@ void* freelist_pop(size_t obj_size, intptr_t* high_vaddr, int data_fd) {
         mmap((void*)(*high_vaddr), PAGE_SIZE, PROT_READ | PROT_WRITE,
              MAP_PRIVATE | MAP_FIXED, data_fd,
              ROUND_DOWN(g_flsts[block_type].high_canonical_addr, PAGE_SIZE));
+    
     if (beginning_vaddr == MAP_FAILED || beginning_vaddr == NULL) {
       perror("mmap failed");
       fprintf(stderr, "data_fd: %d\n", data_fd);
