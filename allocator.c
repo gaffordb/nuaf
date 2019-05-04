@@ -165,7 +165,7 @@ void get_obj_start(void** ptr, size_t obj_size) {
     *ptr = (void*)ROUND_DOWN((intptr_t)*ptr, PAGE_SIZE);
   } else /* Small objs */ {
     /* Round down to the nearest multiple of obj_size */
-    *ptr = (void*)ROUND_DOWN((intptr_t)*ptr-BYTE_ALIGNMENT, obj_size);
+    *ptr = (void*)(ROUND_DOWN((intptr_t)*ptr-BYTE_ALIGNMENT, obj_size) + BYTE_ALIGNMENT);
   }
 }
 
@@ -199,20 +199,23 @@ void xxfree(void* ptr) {
     pthread_mutex_lock(&g_m);
 
     /* Get a fresh virtual page for the same canonical object */
-    void* new_vpage =
-        mremap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), PAGE_SIZE,
-               PAGE_SIZE, MREMAP_FIXED | MREMAP_MAYMOVE, high_vaddr);
-
-    if (new_vpage == MAP_FAILED) {
+    int i = 1;
+    void* new_vpage;
+    while((new_vpage =
+        mremap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), PAGE_SIZE*i++,
+               PAGE_SIZE, MREMAP_FIXED | MREMAP_MAYMOVE, high_vaddr)) == MAP_FAILED && i < 100) {
       fprintf(stderr, "prev_addr: %p, new_addr: %p\n", ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), high_vaddr);
+      fprintf(stderr, "trying to mremap with %d pages...\n", i);
+      raise(1);
+    }
+
+    /* mremap failed for some other reason */
+    if(i == 100) {
       fprintf(stderr, "mmap gave too many pages for some reason...\n");
       
       perror("mremap");
       exit(1);
     }
-    /* bad fix bc mmap is giving 2 pages rather than one for some reason earlier in the code
-       new_vpage = mremap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), PAGE_SIZE*2, PAGE_SIZE, MREMAP_FIXED | MREMAP_MAYMOVE, high_vaddr);
-    */
 
     high_vaddr += PAGE_SIZE;
 

@@ -48,6 +48,7 @@ void* freelist_pop(size_t obj_size, intptr_t* high_vaddr, int data_fd) {
     if (beginning_vaddr == MAP_FAILED || beginning_vaddr == NULL) {
       perror("mmap failed");
       fprintf(stderr, "data_fd: %d\n", data_fd);
+      fprintf(stderr, "attempted to map 1 page to %p\n", *high_vaddr);
       exit(1);
     }
     if(*(int*)beginning_vaddr != block_type) {
@@ -65,7 +66,7 @@ void* freelist_pop(size_t obj_size, intptr_t* high_vaddr, int data_fd) {
        - This works bc objects are powers of 2
        - Size-segregated pages, cycles of length NUM_OBJECT_SIZES pages
     */
-    if ((intptr_t)g_flsts[block_type].high_canonical_addr % PAGE_SIZE > PAGE_SIZE - 1 << ((int)MAGIC_NUMBER + block_type)) {
+    if ((intptr_t)g_flsts[block_type].high_canonical_addr % PAGE_SIZE > (intptr_t)PAGE_SIZE - (1 << ((int)MAGIC_NUMBER + block_type))) {
       
       g_flsts[block_type].high_canonical_addr =
           ROUND_UP(g_flsts[block_type].high_canonical_addr, PAGE_SIZE)+ PAGE_SIZE * (NUM_BLOCK_TYPES - 1) + BYTE_ALIGNMENT;
