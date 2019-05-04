@@ -29,8 +29,7 @@ void freelist_push(void* obj_vaddr) {
       PAGE_SIZE)));  // read the type metadata in the byte before vaddr
 
   *((void**)obj_vaddr) =
-      g_flsts[block_type]
-          .top_of_stack;  // store the current top in the new real_vaddr
+      g_flsts[block_type].top_of_stack;  // store the current top in the new real_vaddr
   g_flsts[block_type].top_of_stack = obj_vaddr;
 }
 

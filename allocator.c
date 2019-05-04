@@ -190,7 +190,7 @@ void xxfree(void* ptr) {
   /* Get start of object */
   get_obj_start(&ptr, obj_size);
   
-  if (obj_size > LARGEST_BLOCK_SIZE) {
+  if ((intptr_t)ptr >= LARGE_OBJ_VADDR_START) {
     /* Unmap object (NOTE: not reusing large objects) */
     munmap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), obj_size);
     return;
