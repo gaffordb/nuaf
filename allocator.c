@@ -189,6 +189,8 @@ void xxfree(void* ptr) {
 
   /* Get start of object */
   get_obj_start(&ptr, obj_size);
+
+  //  fprintf(stderr, "ptr_start: %p\n", ptr);
   
   if ((intptr_t)ptr >= LARGE_OBJ_VADDR_START) {
     /* Unmap object (NOTE: not reusing large objects) */
@@ -241,6 +243,7 @@ size_t xxmalloc_usable_size(void* ptr) {
            LARGE_OBJ_START_MAGIC) {
       ptr -= PAGE_SIZE;
     }
+    return *(size_t*)(ROUND_DOWN((intptr_t)ptr, PAGE_SIZE) + sizeof(size_t)) * PAGE_SIZE;
   }
   
   /* Small objects */

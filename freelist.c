@@ -35,8 +35,10 @@ void freelist_push(void* obj_vaddr) {
 
 /* Return the top of freelist */
 void* freelist_pop(size_t obj_size, intptr_t* high_vaddr, int data_fd) {
+  /* Block type (i.e., size of objects on this page encoded) */
   int8_t block_type =
       obj_size < MIN_BLOCK_SIZE ? 0 : (int)(log2(obj_size)) - MAGIC_NUMBER;
+
   void* obj_vaddr = NULL;
   if (g_flsts[block_type].top_of_stack == NULL) {  // freelist is empty
   
@@ -61,17 +63,16 @@ void* freelist_pop(size_t obj_size, intptr_t* high_vaddr, int data_fd) {
 
     g_flsts[block_type].high_canonical_addr += 1 << ((int)MAGIC_NUMBER + block_type);
 
-    /* If we fill up a page, move on to the next one.
-       Things to keep in mind:
-       - This works bc objects are powers of 2
-       - Size-segregated pages, cycles of length NUM_OBJECT_SIZES pages
-    */
-    if ((intptr_t)g_flsts[block_type].high_canonical_addr % PAGE_SIZE > (intptr_t)PAGE_SIZE - (1 << ((int)MAGIC_NUMBER + block_type))) {
+    /* NOTE: If the final object exactly fills the page, that's bad! 
+     * (i.e., if the final object owns 0x0f10-0x1000, then that last byte is not gonna be mapped appropriately!!) */ 
+    int bof = (intptr_t)g_flsts[block_type].high_canonical_addr % PAGE_SIZE;
+    if (bof == 0 || bof >= (intptr_t)PAGE_SIZE - 2*(1 << ((int)MAGIC_NUMBER + block_type))) {
       
       g_flsts[block_type].high_canonical_addr =
           ROUND_UP(g_flsts[block_type].high_canonical_addr, PAGE_SIZE)+ PAGE_SIZE * (NUM_BLOCK_TYPES - 1) + BYTE_ALIGNMENT;
     }
   } else {
+    /* Pop from freelist */
     obj_vaddr = g_flsts[block_type].top_of_stack;
     g_flsts[block_type].top_of_stack = *((void**)obj_vaddr);
   }
