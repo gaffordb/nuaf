@@ -263,14 +263,3 @@ void* xxmalloc_unlock() {
   pthread_mutex_unlock(&g_m);
   pthread_mutex_unlock(&g_big_obj_m);
 }
-
-void* realloc(void* ptr, size_t size) {
-  if(ptr == NULL) {
-    return xxmalloc(size);
-  }
-  size_t old_size = xxmalloc_usable_size(ptr);
-  void* ret = xxmalloc(size);
-  memcpy(ret, ptr, old_size > size ? size : old_size);
-  xxfree(ptr);
-  return ret;
-}
