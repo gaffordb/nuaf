@@ -153,7 +153,8 @@ void* xxmalloc(size_t size) {
 size_t xxmalloc_usable_size(void* ptr);
 
 
-/* Point to start of the object -- obj size necessary for small objs */
+/* Point to start of the object -- obj size necessary for small objs 
+ *  Intended to deal with interior pointers */
 void get_obj_start(void** ptr, size_t obj_size) {
   if((intptr_t)*ptr >= LARGE_OBJ_VADDR_START) {
     /* Keep going down pages until we find the beginning of the object */
@@ -189,8 +190,6 @@ void xxfree(void* ptr) {
 
   /* Get start of object */
   get_obj_start(&ptr, obj_size);
-
-  //  fprintf(stderr, "ptr_start: %p\n", ptr);
   
   if ((intptr_t)ptr >= LARGE_OBJ_VADDR_START) {
     /* Unmap object (NOTE: not reusing large objects) */
@@ -224,6 +223,7 @@ void xxfree(void* ptr) {
     pthread_mutex_unlock(&g_m);
     
     void* new_obj_vaddr = new_vpage + ((intptr_t) ptr % PAGE_SIZE);
+    
     freelist_push(new_obj_vaddr);
   }
 }

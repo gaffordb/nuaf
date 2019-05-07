@@ -37,7 +37,7 @@ void freelist_push(void* obj_vaddr) {
 void* freelist_pop(size_t obj_size, intptr_t* high_vaddr, int data_fd) {
   /* Block type (i.e., size of objects on this page encoded) */
   int8_t block_type =
-      obj_size < MIN_BLOCK_SIZE ? 0 : (int)(log2(obj_size)) - MAGIC_NUMBER;
+    obj_size < MIN_BLOCK_SIZE ? 0 : (int)(ceil(log2(obj_size))) - MAGIC_NUMBER;
 
   void* obj_vaddr = NULL;
   if (g_flsts[block_type].top_of_stack == NULL) {  // freelist is empty
