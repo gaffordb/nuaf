@@ -193,7 +193,7 @@ void xxfree(void* ptr) {
   
   if ((intptr_t)ptr >= LARGE_OBJ_VADDR_START) {
     /* Unmap object (NOTE: not reusing large objects) */
-    munmap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), obj_size);
+    munmap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), ROUND_UP(obj_size, PAGE_SIZE));
     return;
   } else {
     
@@ -205,9 +205,9 @@ void xxfree(void* ptr) {
     while((new_vpage =
         mremap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), PAGE_SIZE*i++,
                PAGE_SIZE, MREMAP_FIXED | MREMAP_MAYMOVE, high_vaddr)) == MAP_FAILED && i < 100) {
+      perror("mremap");
       fprintf(stderr, "prev_addr: %p, new_addr: %p\n", ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), high_vaddr);
       fprintf(stderr, "trying to mremap with %d pages...\n", i);
-      raise(1);
     }
 
     /* mremap failed for some other reason */
@@ -243,7 +243,7 @@ size_t xxmalloc_usable_size(void* ptr) {
            LARGE_OBJ_START_MAGIC) {
       ptr -= PAGE_SIZE;
     }
-    return *(size_t*)(ROUND_DOWN((intptr_t)ptr, PAGE_SIZE) + sizeof(size_t)) * PAGE_SIZE;
+    return *(size_t*)(ROUND_DOWN((intptr_t)ptr, PAGE_SIZE) + sizeof(size_t)) * PAGE_SIZE - 16; // -16 bc header is not usable
   }
   
   /* Small objects */
@@ -252,4 +252,25 @@ size_t xxmalloc_usable_size(void* ptr) {
       (*(int*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE) + MAGIC_NUMBER);
   }
   return 0;
+}
+
+void* xxmalloc_lock() {
+  pthread_mutex_lock(&g_m);
+  pthread_mutex_lock(&g_big_obj_m);
+}
+
+void* xxmalloc_unlock() {
+  pthread_mutex_unlock(&g_m);
+  pthread_mutex_unlock(&g_big_obj_m);
+}
+
+void* realloc(void* ptr, size_t size) {
+  if(ptr == NULL) {
+    return xxmalloc(size);
+  }
+  size_t old_size = xxmalloc_usable_size(ptr);
+  void* ret = xxmalloc(size);
+  memcpy(ret, ptr, old_size > size ? size : old_size);
+  xxfree(ptr);
+  return ret;
 }
