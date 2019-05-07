@@ -45,7 +45,7 @@ void do_test(void) {
     void* p3 = malloc(p3_size);
     void* p4 = malloc(p4_size);
     void* p5 = malloc(p5_size);
-
+    
     memset(p1, 1, p1_size);
     memset(p2, 2, p2_size);
     memset(p3, 3, p3_size);
@@ -57,12 +57,12 @@ void do_test(void) {
     assert(!memcmp(p3, p3_val, p3_size));
     assert(!memcmp(p4, p4_val, p4_size));
     assert(!memcmp(p5, p5_val, p5_size));
-    
-    free(p1);
-    free(p2);
-    free(p3);
-    free(p4);
-    free(p5);
+
+    free(p1 + rand() % p1_size);
+    free(p2 + rand() % p2_size);
+    free(p3 + rand() % p3_size);
+    free(p4 + rand() % p4_size);
+    free(p5 + rand() % p5_size);
   }
 }
 

@@ -2,15 +2,16 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
+#include <signal.h>
 
 int main(void) {
   printf("Making allocations...\n");
 
-  int p1_size = 512;
-  int p2_size = 1000;
-  int p3_size = 64;
-  int p4_size = 5;
-  int p5_size = 32;
+  int p1_size = 16;
+  int p2_size = 16;
+  int p3_size = 16;
+  int p4_size = 16;
+  int p5_size = 16;
   
   char p1_val[p1_size];
   char p2_val[p2_size];
@@ -31,10 +32,6 @@ int main(void) {
     void* p3 = malloc(p3_size);
     void* p4 = malloc(p4_size);
     void* p5 = malloc(p5_size);
-
-    /* Get canonical address of object */
-    //off_t canonical_addr = *(off_t*)((off_t)p1-8);
-    //    fprintf(stderr, "Canonical address: %p\n", canonical_addr);
     
     memset(p1, 1, p1_size);
     memset(p2, 2, p2_size);
@@ -55,11 +52,4 @@ int main(void) {
 
   }
   printf("Finished.\n");
-  /*
-  printf("Dereferencing okay pointer...\n");
-  int x = *(int*)p5;
-  printf("Dereferencing bad pointer...\n");
-  x = *(int*)p3;
-  printf("Should have segfaulted...\n");
-  */
 }
