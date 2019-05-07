@@ -220,11 +220,11 @@ void xxfree(void* ptr) {
 
     high_vaddr += PAGE_SIZE;
 
-    pthread_mutex_unlock(&g_m);
-    
     void* new_obj_vaddr = new_vpage + ((intptr_t) ptr % PAGE_SIZE);
     
     freelist_push(new_obj_vaddr);
+
+    pthread_mutex_unlock(&g_m);
   }
 }
 
