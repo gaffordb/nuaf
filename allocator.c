@@ -98,7 +98,7 @@ void* xxmalloc_big(size_t size) {
 */
   void* shadow = mmap((void*)large_obj_next_page,
                       num_pages * PAGE_SIZE, PROT_READ | PROT_WRITE,
-                      MAP_SHARED | MAP_FIXED | MAP_ANONYMOUS, 0, 0);
+                      MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, 0, 0);
 
   if(shadow == MAP_FAILED || shadow != (void*)large_obj_next_page) {
     perror("mmap failed");
@@ -193,7 +193,7 @@ void xxfree(void* ptr) {
   
   if ((intptr_t)ptr >= LARGE_OBJ_VADDR_START) {
     /* Unmap object (NOTE: not reusing large objects) */
-    munmap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), ROUND_UP(obj_size, PAGE_SIZE));
+    // Do nothing
     return;
   } else {
     
