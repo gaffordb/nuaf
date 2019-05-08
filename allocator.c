@@ -38,9 +38,12 @@
 extern void* __libc_malloc(size_t);
 extern void __libc_free(void*);
 
+size_t num_mappings = 0;
 int data_fd = 0;
 size_t high_vaddr = MMAP_MIN_ADDR;
 size_t large_obj_next_page = LARGE_OBJ_VADDR_START;
+
+pid_t par_ps = 0;
 
 pthread_mutex_t g_m = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t g_big_obj_m = PTHREAD_MUTEX_INITIALIZER;
@@ -52,7 +55,15 @@ void sigsegv_handler(int signal, siginfo_t* info, void* ctx) {
 
 void __attribute__((destructor)) destroy_mem(void) { close(data_fd); }
 void __attribute__((constructor)) init_mem(void) {
-  if(data_fd != 0) { return; } // If already called
+  /* If already called in this process, or uncalled in new child process */
+
+  if(par_ps == getpid()) { return; } 
+
+  data_fd = 0;
+  par_ps = getpid();
+  high_vaddr = MMAP_MIN_ADDR;
+  large_obj_next_page = LARGE_OBJ_VADDR_START;
+  num_mappings = 0;
   
   // Make a sigaction struct to hold our signal handler information
   struct sigaction sa;
@@ -66,10 +77,9 @@ void __attribute__((constructor)) init_mem(void) {
      exit(2);
    }
 
-  errno = 0;
-
   /* Make backing data file */
-  data_fd = open("./.my_data", O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+  char stemp[23] = "/tmp/nuaf_data_XXXXXX";
+  data_fd = mkstemp(stemp);
 
   if (data_fd == -1) {
     perror("open");
@@ -118,7 +128,7 @@ void* xxmalloc_big(size_t size) {
   *(size_t*)(shadow+sizeof(size_t)) = num_pages;
   
   // fprintf(stderr, "allocated big obj %u @ %p\n", size, shadow);
-
+  //  fprintf(stderr, "num_mappings: %zu\n", num_mappings++);
   /* Return usable pointer (after object metadata)*/
   return shadow+sizeof(size_t)*2;
 }
@@ -147,6 +157,7 @@ void* xxmalloc(size_t size) {
 
   pthread_mutex_unlock(&g_m);
 
+  //  fprintf(stderr, "num_mappings: %zu\n", num_mappings++);
   return obj_vaddr;
 }
 
@@ -184,6 +195,8 @@ void xxfree(void* ptr) {
   if (ptr == NULL) {
     return;
   }
+
+// fprintf(stderr, "num_mappings: %zu\n", num_mappings++);
 
   /* Determine object size */
   size_t obj_size = xxmalloc_usable_size(ptr);

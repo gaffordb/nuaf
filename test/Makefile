@@ -1,4 +1,4 @@
-CC=gcc -g
+CC=clang -g
 
 all: test1 testbad test_simple test_small_objs test_complete test_worstcase
 

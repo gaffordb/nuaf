@@ -10,9 +10,6 @@
 /* Array of freelists */
 freelist_t g_flsts[NUM_BLOCK_TYPES];
 
-// const unsigned short g_obj_sizes[] = {8, 16, 32, 64, 128, 256, 512, 1024,
-// 2048};
-
 /* Init freelist */
 void freelist_init() {
   for (int i = 0; i < NUM_BLOCK_TYPES; i++) {
