@@ -98,7 +98,7 @@ void* xxmalloc_big(size_t size) {
 */
   void* shadow = mmap((void*)large_obj_next_page,
                       num_pages * PAGE_SIZE, PROT_READ | PROT_WRITE,
-                      MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, 0, 0);
+                      MAP_SHARED | MAP_FIXED | MAP_ANONYMOUS, 0, 0);
 
   if(shadow == MAP_FAILED || shadow != (void*)large_obj_next_page) {
     perror("mmap failed");
@@ -203,7 +203,7 @@ void xxfree(void* ptr) {
     int i = 1;
     void* new_vpage;
     while((new_vpage =
-        mremap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), PAGE_SIZE*i++,
+        mremap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), 0,
                PAGE_SIZE, MREMAP_FIXED | MREMAP_MAYMOVE, high_vaddr)) == MAP_FAILED && i < 100) {
       perror("mremap");
       fprintf(stderr, "prev_addr: %p, new_addr: %p\n", ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), high_vaddr);
