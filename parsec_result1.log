@@ -1,0 +1,55 @@
+--------fluidanimate--------
+nuaf version
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	26m45.434s
+user	26m44.025s
+sys	0m1.372s
+normal version
+
+real	26m46.770s
+user	26m46.296s
+sys	0m0.456s
+--------freqmine--------
+nuaf version
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	1m33.053s
+user	6m3.068s
+sys	0m1.503s
+normal version
+
+real	1m33.081s
+user	6m5.916s
+sys	0m0.616s
+--------vips--------
+nuaf version
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m53.422s
+user	3m1.510s
+sys	0m17.489s
+normal version
+
+real	0m44.539s
+user	2m51.386s
+sys	0m1.335s
+
+--------dedup--------
+nuaf version
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	1m23.879s
+user	0m43.714s
+sys	0m20.835s
+normal version
+
+real	0m34.753s
+user	0m39.929s
+sys	0m3.521s
+
+--------x264--------
