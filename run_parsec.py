@@ -195,13 +195,4 @@ else:
                         + " is not in available parsec benchmark set -----------------"
                     )
 
-# How to use:
-# Put this script in ALEX directory and be in this directory
-# `pushd` to parsec-benchmark directory and run `source env.sh`
-# also make sure that you get the input and configure the bldconfig file with debug symbol flags
-# `popd` back to ALEX directory
-# Run `python parsec.py [print/execute] [nuaf/null] [benchmark1/all] ... [benchmarkn]`
-
-# Caution:
-# run-alex-benchmark.sh needs to be in ALEX directory to run parsec
 
