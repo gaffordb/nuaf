@@ -7,7 +7,7 @@
 extern size_t num_mappings;
 
 /* obtained via /pro/sys/vm/mmap_min_addr */
-#define MMAP_MIN_ADDR 0x100000
+#define MMAP_MIN_ADDR 0x100000000
 
 #define ROUND_UP(X, Y) ((X) % (Y) == 0 ? (X) : (X) + ((Y) - (X) % (Y)))
 #define ROUND_DOWN(X, Y) ((X) % (Y) == 0 ? (X) : (X) - ((X) % (Y)))

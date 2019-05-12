@@ -58,9 +58,8 @@ void sigsegv_handler(int signal, siginfo_t* info, void* ctx) {
 
 void __attribute__((destructor)) destroy_mem(void) { close(data_fd); }
 void __attribute__((constructor)) init_mem(void) {
-  fprintf(stderr, "!!!nuaf is running!!!\n");
+  
   /* If already called in this process, or uncalled in new child process */
-
   if (par_ps == getpid()) {
     return;
   }
