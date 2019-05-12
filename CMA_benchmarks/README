@@ -40,6 +40,7 @@ system.
   % cache-scratch 1 100 8 1000000
   % cache-scratch P 100 8 1000000
 
+  about 0.7 seconds
 * cache-thrash:
 
   This benchmark is referred to in the paper as "active-false", and
@@ -60,6 +61,7 @@ system.
 
   Suggested parameters: ./larson 10 7 8 1000 10000 1 P
 
+  about 7.5 seconds
 * shbench:
 
   A benchmark where each thread allocates and randomly frees a number
@@ -81,7 +83,7 @@ system.
   Parameters: <number-of-threads> <iterations> <num-objects> <work-interval> <object-size>
 
   % threadtest P 1000 10000 0 8
-
+about 0.5 seconds
 
 Additional benchmarks not in the original Hoard paper:
 
@@ -92,3 +94,4 @@ Additional benchmarks not in the original Hoard paper:
 
   Parameters: <object-size> <iterations> <number-of-threads>
   Example: 8 10000000 P
+  about 0.6 seconds

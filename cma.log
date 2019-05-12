@@ -1,0 +1,273 @@
+--------cache-scratch--------
+nuaf version
+thread = 1
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m0.740s
+user	0m0.739s
+sys	0m0.000s
+thread = 3
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m0.249s
+user	0m0.739s
+sys	0m0.000s
+thread = 5
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m0.235s
+user	0m0.733s
+sys	0m0.008s
+thread = 7
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m0.218s
+user	0m0.739s
+sys	0m0.004s
+thread = 9
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m0.213s
+user	0m0.732s
+sys	0m0.012s
+normal version
+thread = 1
+
+real	0m0.737s
+user	0m0.737s
+sys	0m0.000s
+thread = 3
+
+real	0m2.929s
+user	0m8.462s
+sys	0m0.000s
+thread = 5
+
+real	0m2.166s
+user	0m7.930s
+sys	0m0.000s
+thread = 7
+
+real	0m0.747s
+user	0m2.159s
+sys	0m0.000s
+thread = 9
+
+real	0m0.325s
+user	0m1.143s
+sys	0m0.000s
+--------cache-thrash--------
+nuaf version
+thread = 1
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m0.743s
+user	0m0.738s
+sys	0m0.004s
+thread = 3
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m0.257s
+user	0m0.734s
+sys	0m0.009s
+thread = 5
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m0.237s
+user	0m0.738s
+sys	0m0.004s
+thread = 7
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m0.203s
+user	0m0.744s
+sys	0m0.000s
+thread = 9
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m0.221s
+user	0m0.746s
+sys	0m0.000s
+normal version
+thread = 1
+
+real	0m0.738s
+user	0m0.737s
+sys	0m0.000s
+thread = 3
+
+real	0m0.248s
+user	0m0.738s
+sys	0m0.000s
+thread = 5
+
+real	0m0.222s
+user	0m0.739s
+sys	0m0.000s
+thread = 7
+
+real	0m0.216s
+user	0m0.735s
+sys	0m0.004s
+thread = 9
+
+real	0m0.202s
+user	0m0.734s
+sys	0m0.004s
+--------larson--------
+nuaf version
+thread = 1
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m15.015s
+user	0m1.084s
+sys	0m8.928s
+thread = 3
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m15.042s
+user	0m2.222s
+sys	0m13.846s
+thread = 5
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m15.107s
+user	0m2.003s
+sys	0m13.611s
+thread = 7
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m15.253s
+user	0m2.149s
+sys	0m13.848s
+thread = 9
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m15.223s
+user	0m2.131s
+sys	0m13.737s
+normal version
+thread = 1
+
+real	0m15.002s
+user	0m10.001s
+sys	0m0.000s
+thread = 3
+
+real	0m15.003s
+user	0m29.837s
+sys	0m0.008s
+thread = 5
+
+real	0m15.005s
+user	0m38.673s
+sys	0m0.012s
+thread = 7
+
+real	0m15.005s
+user	0m39.207s
+sys	0m0.028s
+thread = 9
+
+real	0m15.011s
+user	0m38.689s
+sys	0m0.032s
+--------threadtest--------
+nuaf version
+thread = 1
+bash: /home/yangxiny/Desktop/nuaf/CMA_benchmarks/1test/1test: No such file or directory
+
+real	0m0.001s
+user	0m0.001s
+sys	0m0.000s
+thread = 3
+bash: /home/yangxiny/Desktop/nuaf/CMA_benchmarks/3test/3test: No such file or directory
+
+real	0m0.001s
+user	0m0.000s
+sys	0m0.000s
+thread = 5
+bash: /home/yangxiny/Desktop/nuaf/CMA_benchmarks/5test/5test: No such file or directory
+
+real	0m0.001s
+user	0m0.000s
+sys	0m0.000s
+thread = 7
+bash: /home/yangxiny/Desktop/nuaf/CMA_benchmarks/7test/7test: No such file or directory
+
+real	0m0.006s
+user	0m0.000s
+sys	0m0.000s
+thread = 9
+bash: /home/yangxiny/Desktop/nuaf/CMA_benchmarks/9test/9test: No such file or directory
+
+real	0m0.001s
+user	0m0.000s
+sys	0m0.000s
+normal version
+thread = 1
+bash: /home/yangxiny/Desktop/nuaf/CMA_benchmarks/1test/1test: No such file or directory
+
+real	0m0.000s
+user	0m0.000s
+sys	0m0.000s
+thread = 3
+bash: /home/yangxiny/Desktop/nuaf/CMA_benchmarks/3test/3test: No such file or directory
+
+real	0m0.001s
+user	0m0.000s
+sys	0m0.000s
+thread = 5
+bash: /home/yangxiny/Desktop/nuaf/CMA_benchmarks/5test/5test: No such file or directory
+
+real	0m0.000s
+user	0m0.000s
+sys	0m0.000s
+thread = 7
+bash: /home/yangxiny/Desktop/nuaf/CMA_benchmarks/7test/7test: No such file or directory
+
+real	0m0.000s
+user	0m0.000s
+sys	0m0.000s
+thread = 9
+bash: /home/yangxiny/Desktop/nuaf/CMA_benchmarks/9test/9test: No such file or directory
+
+real	0m0.000s
+user	0m0.000s
+sys	0m0.000s
+--------linux-scalability--------
+nuaf version
+thread = 1
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+Killed
+
+real	1m8.481s
+user	0m4.144s
+sys	0m29.145s
+thread = 3
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+Killed
+
+real	3m25.288s
+user	0m18.879s
+sys	2m30.647s
+thread = 5
+!!!nuaf is running!!!
+!!!nuaf is running!!!

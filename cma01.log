@@ -1,0 +1,252 @@
+--------cache-scratch--------
+--nuaf version--
+thread = 1
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m18.454s
+user	0m18.438s
+sys	0m0.004s
+thread = 3
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m6.178s
+user	0m18.429s
+sys	0m0.020s
+thread = 5
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m4.968s
+user	0m18.414s
+sys	0m0.012s
+thread = 7
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m4.894s
+user	0m18.398s
+sys	0m0.044s
+thread = 9
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m5.131s
+user	0m18.395s
+sys	0m0.083s
+--normal version--
+thread = 1
+
+real	0m18.550s
+user	0m18.392s
+sys	0m0.136s
+thread = 3
+
+real	0m6.399s
+user	0m18.392s
+sys	0m0.064s
+thread = 5
+
+real	0m5.585s
+user	0m18.418s
+sys	0m0.020s
+thread = 7
+
+real	0m5.064s
+user	0m18.425s
+sys	0m0.024s
+thread = 9
+
+real	0m5.797s
+user	0m18.409s
+sys	0m0.027s
+--------cache-thrash--------
+--nuaf version--
+thread = 1
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m18.501s
+user	0m18.441s
+sys	0m0.024s
+thread = 3
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m6.211s
+user	0m18.432s
+sys	0m0.028s
+thread = 5
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m5.110s
+user	0m18.418s
+sys	0m0.008s
+thread = 7
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m4.903s
+user	0m18.413s
+sys	0m0.016s
+thread = 9
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m4.851s
+user	0m18.426s
+sys	0m0.004s
+--normal version--
+thread = 1
+
+real	0m18.432s
+user	0m18.425s
+sys	0m0.000s
+thread = 3
+
+real	0m6.399s
+user	0m18.432s
+sys	0m0.004s
+thread = 5
+
+real	0m5.108s
+user	0m18.414s
+sys	0m0.008s
+thread = 7
+
+real	0m4.860s
+user	0m18.416s
+sys	0m0.004s
+thread = 9
+
+real	0m4.833s
+user	0m18.416s
+sys	0m0.004s
+--------larson--------
+--nuaf version--
+thread = 1
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m15.015s
+user	0m1.395s
+sys	0m8.615s
+thread = 3
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m15.046s
+user	0m1.891s
+sys	0m13.435s
+thread = 5
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m15.090s
+user	0m1.834s
+sys	0m13.051s
+thread = 7
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m15.176s
+user	0m1.959s
+sys	0m13.359s
+thread = 9
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m15.606s
+user	0m2.382s
+sys	0m13.961s
+--normal version--
+thread = 1
+
+real	0m15.003s
+user	0m9.991s
+sys	0m0.008s
+thread = 3
+
+real	0m15.004s
+user	0m29.733s
+sys	0m0.036s
+thread = 5
+
+real	0m15.009s
+user	0m39.059s
+sys	0m0.056s
+thread = 7
+
+real	0m15.012s
+user	0m38.055s
+sys	0m0.056s
+thread = 9
+
+real	0m15.012s
+user	0m38.344s
+sys	0m0.060s
+--------threadtest--------
+--nuaf version--
+thread = 1
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m7.784s
+user	0m1.260s
+sys	0m6.521s
+thread = 3
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m19.607s
+user	0m5.347s
+sys	0m29.529s
+thread = 5
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m17.817s
+user	0m4.693s
+sys	0m26.166s
+thread = 7
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m20.007s
+user	0m5.846s
+sys	0m31.178s
+thread = 9
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m20.163s
+user	0m5.746s
+sys	0m31.872s
+--normal version--
+thread = 1
+
+real	0m1.034s
+user	0m0.519s
+sys	0m0.515s
+thread = 3
+
+real	0m0.367s
+user	0m0.542s
+sys	0m0.478s
+thread = 5
+
+real	0m0.127s
+user	0m0.376s
+sys	0m0.000s
+thread = 7
+
+real	0m0.123s
+user	0m0.363s
+sys	0m0.004s
+thread = 9
+
+real	0m0.116s
+user	0m0.367s
+sys	0m0.000s

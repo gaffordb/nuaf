@@ -1,0 +1,39 @@
+--------cache-scratch--------
+--nuaf version--
+thread = 1
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	3m4.072s
+user	3m4.068s
+sys	0m0.000s
+thread = 3
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	1m1.811s
+user	3m4.183s
+sys	0m0.028s
+thread = 5
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m48.616s
+user	3m4.205s
+sys	0m0.060s
+thread = 7
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m48.638s
+user	3m4.194s
+sys	0m0.088s
+thread = 9
+!!!nuaf is running!!!
+!!!nuaf is running!!!
+
+real	0m48.618s
+user	3m4.287s
+sys	0m0.028s
+--normal version--
+thread = 1
