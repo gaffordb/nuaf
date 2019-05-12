@@ -12,6 +12,7 @@
 #include <sys/stat.h> 
 #include <fcntl.h>
 
+extern size_t new_mappings;
 /* Array of freelists */
 freelist_t g_flsts[NUM_BLOCK_TYPES];
 
@@ -53,19 +54,21 @@ void* freelist_pop(size_t obj_size, intptr_t* high_vaddr, int data_fd) {
 
     if (beginning_vaddr == MAP_FAILED || beginning_vaddr == NULL) {
       perror("mmap failed");
-      fprintf(stderr, "data_offset: %p error code %d\n",
-              g_flsts[block_type].high_canonical_addr, errno);
-      fprintf(stderr, "attempted to map 1 page to %p\n", *high_vaddr);
+      fprintf(stderr, "data_offset: %p error code %d, num_mappings = %zu\n",
+              (void*)g_flsts[block_type].high_canonical_addr, errno, num_mappings);
+      fprintf(stderr, "attempted to map 1 page to %p\n", (void*)*high_vaddr);
 
-      int fd = open("/proc/self/maps", O_RDONLY);
-      char buf[1024];
-      int buflen;
-      while ((buflen = read(fd, buf, 1024)) > 0) {
-        write(1, buf, buflen);
-      }
-      close(fd);
+      // int fd = open("/proc/self/maps", O_RDONLY);
+      // char buf[1024];
+      // int buflen;
+      // while ((buflen = read(fd, buf, 1024)) > 0) {
+      //   write(1, buf, buflen);
+      // }
+      // close(fd);
       exit(1);
     }
+
+    num_mappings++;
     if (*(int*)beginning_vaddr != block_type) {
       *(int*)beginning_vaddr = block_type;
     }

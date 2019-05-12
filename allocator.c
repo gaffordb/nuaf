@@ -34,7 +34,7 @@
 extern void* __libc_malloc(size_t);
 extern void __libc_free(void*);
 
-size_t num_mappings = 0;
+size_t num_mappings;
 int data_fd = 0;
 size_t high_vaddr = MMAP_MIN_ADDR;
 size_t large_obj_next_page = LARGE_OBJ_VADDR_START;
@@ -46,13 +46,13 @@ pthread_mutex_t g_big_obj_m = PTHREAD_MUTEX_INITIALIZER;
 
 void sigsegv_handler(int signal, siginfo_t* info, void* ctx) {
   printf("Got SIGSEGV at address: 0x%lx\n", (long)info->si_addr);
-  int fd = open("/proc/self/maps", O_RDONLY);
-  char buf[1024];
-  int buflen;
-  while ((buflen = read(fd, buf, 1024)) > 0) {
-    write(1, buf, buflen);
-  }
-  close(fd);
+  // int fd = open("/proc/self/maps", O_RDONLY);
+  // char buf[1024];
+  // int buflen;
+  // while ((buflen = read(fd, buf, 1024)) > 0) {
+  //   write(1, buf, buflen);
+  // }
+  // close(fd);
   exit(EXIT_FAILURE);
 }
 
@@ -124,6 +124,7 @@ void* xxmalloc_big(size_t size) {
     fprintf(stderr, "data_fd: %d, the error code is %d\n", data_fd, errno);
     exit(1);
   }
+  num_mappings++;
 
   /* Update next available vaddr for big objects */
   large_obj_next_page += PAGE_SIZE * num_pages;
@@ -218,6 +219,7 @@ void xxfree(void* ptr) {
     /* Unmap object (NOTE: not reusing large objects) */
     munmap((void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE),
            ROUND_UP(obj_size, PAGE_SIZE));
+    num_mappings--;
     return;
   } else {
     pthread_mutex_lock(&g_m);
@@ -232,7 +234,7 @@ void xxfree(void* ptr) {
            i < 100) {
       perror("mremap");
       fprintf(stderr, "prev_addr: %p, new_addr: %p\n",
-              ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), high_vaddr);
+              (void*)ROUND_DOWN((intptr_t)ptr, PAGE_SIZE), (void*)high_vaddr);
       fprintf(stderr, "trying to mremap with %d pages...\n", i);
     }
 

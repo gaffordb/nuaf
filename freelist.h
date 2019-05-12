@@ -4,6 +4,8 @@
 #include <sys/types.h>
 #include <stdint.h>
 
+extern size_t num_mappings;
+
 /* obtained via /pro/sys/vm/mmap_min_addr */
 #define MMAP_MIN_ADDR 0x100000
 

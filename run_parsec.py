@@ -145,7 +145,7 @@ benchmarks = [
     "blackscholes",
     "bodytrack",
     # "canneal",
-    # "facesim", //other error
+    "facesim", #other error
     "ferret",
     "fluidanimate",
     "freqmine",
@@ -158,17 +158,17 @@ benchmarks = [
 ]
 
 # Verify command line arguments
-if len(sys.argv) < 4:
+if len(sys.argv) < 5:
     print(
-        "Usage: python run_parsec.py [print/execute] [nuaf/null/all] [benchmark1/all] ... [benchmarkn]"
+        "Usage: python run_parsec.py [print/execute] [nuaf/null] [output.log] [benchmark1/all]  ... [benchmarkn]"
     )
 else:
-    if sys.argv[3] != "all":
-        benchmarks = sys.argv[3:]
+    if sys.argv[4] != "all":
+        benchmarks = sys.argv[4:]
     if sys.argv[1] == "print":
         ld = ""
         command = ""
-        if sys.argv[2] == "nuaf" or sys.argv[2] == "all":
+        if sys.argv[2] == "nuaf":
             ld = ld_preload
         for benchmark in benchmarks:
             temp = ""
@@ -177,9 +177,9 @@ else:
             command = (
                 command + "echo; echo; >&2 echo --------" + benchmark + "--------;"
             )
-            command = command + ">&2 echo " + "nuaf version" + "; "
+            command = command + ">&2 echo " + "\"nuaf version\"" + "; "
             command = command + "time " + ld + temp + "; "
-            command = command + ">&2 echo " + "normal version" + "; "
+            command = command + ">&2 echo " + "\"normal version\"" + "; "
             command = command + "time " + "" + temp + "; "
         command = "{ " + command + " } 2> sss.log; "
         print(command)

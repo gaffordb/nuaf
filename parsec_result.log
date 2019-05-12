@@ -1,0 +1,53 @@
+blackscholes
+nuaf version
+real	2m54.321s
+user	2m53.548s
+sys	0m0.484s
+normal version
+real	2m54.428s
+user	2m53.694s
+sys	0m0.456s
+
+
+bodytrack
+nuaf version
+real	8m47.760s
+user	8m48.089s
+sys	0m2.633s
+normal version
+real	8m44.102s
+user	8m46.201s
+sys	0m0.652s
+
+
+--------ferret--------
+nuaf version
+real	9m51.824s
+user	12m47.276s
+sys	0m6.008s
+normal version
+real	9m49.082s
+user	12m45.525s
+sys	0m0.660s
+
+
+streamcluster
+nuaf version
+real	13m53.553s
+user	13m53.413s
+sys	0m0.128s
+normal version
+real	13m54.809s
+user	13m54.663s
+sys	0m0.128s
+
+
+swaptions
+nuaf version
+real	8m49.126s
+user	6m57.182s
+sys	1m51.145s
+normal version
+real	6m28.076s
+user	6m28.057s
+sys	0m0.012s
