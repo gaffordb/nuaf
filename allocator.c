@@ -46,7 +46,8 @@ pthread_mutex_t g_big_obj_m = PTHREAD_MUTEX_INITIALIZER;
 
 void sigsegv_handler(int signal, siginfo_t* info, void* ctx) {
   printf("Got SIGSEGV at address: 0x%lx\n", (long)info->si_addr);
-  // int fd = open("/proc/self/maps", O_RDONLY);
+  // Uncomment below for printing program mappings upon segfault
+  // int fd = open("/proc/self/maps", O_RDONLY); 
   // char buf[1024];
   // int buflen;
   // while ((buflen = read(fd, buf, 1024)) > 0) {
