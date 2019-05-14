@@ -102,4 +102,4 @@ else:
                         + " is not in available parsec benchmark set -----------------"
                     )
 
-# settings for cache-sratch-2: cache-scratch P 100 8 10000000
+# settings for cache-scratch-2: cache-scratch P 100 8 10000000
