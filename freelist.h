@@ -25,11 +25,6 @@ extern size_t num_mappings;
 #define LARGEST_BLOCK_SIZE  (PAGE_SIZE >> 1)
 #define NUM_BLOCK_TYPES (12 - MAGIC_NUMBER)  // need to be more programatic
 
-// typedef struct mapping {
-//   void* vaddr; //not the start of the page (offset built in)
-//   int8_t block_type; //Maybe there is a way to just use one of it in the beginning of every page
-// } mapping_t;
-
 typedef struct freelist {
   void* top_of_stack;        // the address of the top available block
   off_t high_canonical_addr;  //highest addr will be used by this freelist, used for
@@ -38,7 +33,6 @@ typedef struct freelist {
 /* Init freelist */
 void freelist_init();
 
-/* should be call when someone is freed
 /* Add to the front of freelist */
 void freelist_push(void* obj_vaddr);
 
@@ -46,13 +40,3 @@ void freelist_push(void* obj_vaddr);
 void* freelist_pop(size_t obj_size, intptr_t* high_vaddr,
                   int data_fd);
 
-/* NOTE: 'correct' free list determined by either obj_size, or by canonical
- * address */
-// /* Take from correct free list, and put @ mapping */
-// void get_mapping(size_t obj_size, mapping_t* mapping);
-
-// /* Put into correct free list -- return true if successful (i.e., correct
-//  * freelist not full) */
-// bool put_mapping(void* vaddr, off_t canonical_addr);
-
-// size_t get_obj_size_by_header(off_t canonical_addr);
