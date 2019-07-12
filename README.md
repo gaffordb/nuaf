@@ -1,7 +1,7 @@
 # nuaf (No Using After Freeing)
 Included in this repository is the source code, tests, and log files regarding performance of this system. Refer to report.pdf for more information regarding this system. The high-level idea of our system is derived from Oscar 2017.  
 
-## To make our system  
+## To make our system:  
 call `make` at the root of the repository.  
 
 ## To use our system:  
